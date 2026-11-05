@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 import type { EngineId } from "@/lib/types";
 
-export type EngineReply = { answer: string; citations: { url: string; title?: string }[] };
+export type EngineReply = { answer: string; citations: { url: string; title?: string }[]; grounded?: boolean };
 
 export const engineLabels: Record<EngineId, string> = {
   chatgpt: "ChatGPT",
@@ -84,18 +84,53 @@ type GeminiResponse = {
   }[];
 };
 
-async function askGemini(prompt: string): Promise<EngineReply> {
-  const json = await postJson<GeminiResponse>(
-    `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent`,
-    { contents: [{ role: "user", parts: [{ text: prompt }] }], tools: [{ google_search: {} }] },
+/** postJson throws "<status> <body>"; pull the status back out. */
+const httpStatus = (e: unknown) => Number((e instanceof Error ? e.message : String(e)).match(/^(\d{3})\b/)?.[1] ?? 0);
+
+// Search grounding has no free-tier quota on many keys. Once it's refused, skip it for the rest of this instance.
+let geminiSearchBlocked = false;
+// Free-tier limits differ per model, so step down to lighter models when one is busy (503) or rate-limited (429).
+const GEMINI_FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3.1-flash-lite"];
+
+async function geminiCall(model: string, prompt: string, search: boolean) {
+  return postJson<GeminiResponse>(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    {
+      contents: [{ role: "user", parts: [{ text: search ? prompt : `I'm in ${LOCATION.city}, ${LOCATION.region}, Australia. ${prompt}` }] }],
+      ...(search ? { tools: [{ google_search: {} }] } : {}),
+    },
     { "x-goog-api-key": env.gemini! },
   );
-  const cand = json.candidates?.[0];
+}
+
+async function askGemini(prompt: string): Promise<EngineReply> {
+  let json: GeminiResponse | null = null;
+  let grounded = !geminiSearchBlocked;
+  const models = [...new Set([env.geminiModel, ...GEMINI_FALLBACK_MODELS])];
+  for (const [i, model] of models.entries()) {
+    try {
+      if (grounded) {
+        try {
+          json = await geminiCall(model, prompt, true);
+        } catch (e) {
+          if (httpStatus(e) !== 429) throw e;
+          geminiSearchBlocked = true;
+          grounded = false;
+        }
+      }
+      json ??= await geminiCall(model, prompt, false);
+      break;
+    } catch (e) {
+      const busy = httpStatus(e) === 429 || httpStatus(e) === 503;
+      if (!busy || i === models.length - 1) throw e;
+    }
+  }
+  const cand = json?.candidates?.[0];
   const answer = (cand?.content?.parts ?? []).map((p) => p.text ?? "").join("");
   const citations = (cand?.groundingMetadata?.groundingChunks ?? [])
     .map((g) => ({ url: g.web?.uri ?? "", title: g.web?.title }))
     .filter((c) => c.url);
-  return { answer, citations };
+  return { answer, citations, grounded };
 }
 
 /* ---------- Perplexity: Sonar chat completions ---------- */

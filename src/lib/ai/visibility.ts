@@ -1,5 +1,6 @@
 import "server-only";
 import type { EngineAnswer, EngineId } from "@/lib/types";
+import { suburbs } from "@/lib/categories";
 import { askEngine } from "./engines";
 
 const STOP = new Set(["pty", "ltd", "limited", "the", "co", "company", "group", "services", "service", "sa", "adelaide", "australia", "and", "of"]);
@@ -46,12 +47,26 @@ export function mentions(answer: string, citations: { url: string }[], name: str
   return false;
 }
 
-const GENERIC = /^(cost|price|pricing|tips?|note|summary|conclusion|why|how|what|when|where|services?|reviews?|location|hours|contact|recommendation|recommendations|key|important|pros|cons|overview|factors|considerations?|emergency|availability|license|licensing|insurance|step \d|option \d|top picks?|best overall|budget|quick answer)$/i;
+const GENERIC = /^(cost|price|pricing|tips?|note|summary|conclusion|why|how|what|when|where|services?|reviews?|location|hours|contact|recommendation|recommendations|key|important|pros|cons|overview|factors|considerations?|emergency|availability|license|licensing|insurance|step \d|option \d|top picks?|best overall|budget|quick answer|best for|good for|known for|why them|why choose them|specialt(y|ies)|speciality|highlights?|website|phone|address|rating|google rating|area served|service area|reputation|experience)$/i;
+// Places, so "**Unley (5061)**" or "Adelaide CBD" isn't counted as a rival business.
+const PLACES = new Set(
+  [
+    ...suburbs, "Adelaide", "South Australia", "SA", "Australia", "Adelaide Hills", "Fleurieu Peninsula", "Barossa",
+    "Inner South", "Inner North", "Eastern Suburbs", "Western Suburbs", "Northern Suburbs", "Southern Suburbs",
+    // Regulators, platforms and review sites that answers cite but aren't competitors.
+    "Consumer and Business Services", "CBS", "ACCC", "Google", "Google Maps", "Google Reviews", "Google Business Profile",
+    "ProductReview", "ProductReview.com.au", "Word of Mouth", "WOMO", "hipages", "Yelp", "Oneflare", "Airtasker",
+    "Facebook", "Master Plumbers Association", "Master Builders SA", "Master Electricians Australia", "Healthdirect", "AHPRA",
+  ].map((p) => norm(p)),
+);
+const SMALL_WORDS = new Set(["and", "&", "of", "the", "for", "in", "at", "by"]);
 
 /** Pull business names out of a typical "here are the best X" answer. */
 export function extractNames(answer: string): string[] {
   const names: string[] = [];
   const push = (raw: string) => {
+    // "**Best for:**" style labels end in a colon; real names don't.
+    if (/:\s*$/.test(raw.replace(/[*_`]/g, ""))) return;
     const n = raw
       .replace(/\[(.*?)\]\(.*?\)/g, "$1")
       .replace(/[*_`#]/g, "")
@@ -60,9 +75,12 @@ export function extractNames(answer: string): string[] {
       .replace(/[.,:;]+$/, "")
       .trim();
     if (n.length < 3 || n.length > 60) return;
-    if (GENERIC.test(n)) return;
+    if (GENERIC.test(n) || PLACES.has(norm(n))) return;
     if (n.split(" ").length > 8) return;
     if (!/[A-Z]/.test(n[0] ?? "")) return;
+    // Business names are title case; "CCTV drain cameras" is a phrase, not a business.
+    const words = n.split(/\s+/).filter((w) => !SMALL_WORDS.has(w.toLowerCase()));
+    if (words.length > 1 && words.filter((w) => /^[a-z]/.test(w)).length * 2 >= words.length) return;
     if (!names.some((x) => norm(x) === norm(n))) names.push(n);
   };
   for (const m of answer.matchAll(/\*\*([^*\n]{3,80})\*\*/g)) push(m[1]);
@@ -81,7 +99,7 @@ export async function runPrompt(
 ): Promise<EngineAnswer> {
   const t0 = Date.now();
   try {
-    const { answer, citations } = await askEngine(engine, prompt);
+    const { answer, citations, grounded } = await askEngine(engine, prompt);
     const mentioned = mentions(answer, citations, business.name, business.website);
     const named = extractNames(answer);
     const isUs = (n: string) => mentions(n, [], business.name);
@@ -107,6 +125,7 @@ export async function runPrompt(
       position,
       othersNamed: others.slice(0, 10),
       competitorsMentioned: competitors.filter((c) => c && mentions(answer, citations, c)),
+      grounded: grounded ?? true,
       ms: Date.now() - t0,
     };
   } catch (e) {

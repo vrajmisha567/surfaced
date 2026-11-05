@@ -5,7 +5,7 @@ export const env = {
   openai: process.env.OPENAI_API_KEY,
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-5-mini",
   gemini: process.env.GEMINI_API_KEY,
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
   perplexity: process.env.PERPLEXITY_API_KEY,
   perplexityModel: process.env.PERPLEXITY_MODEL ?? "sonar",
   anthropic: process.env.ANTHROPIC_API_KEY,

@@ -34,6 +34,8 @@ export type EngineAnswer = {
   /** Other business names the engine recommended instead. */
   othersNamed: string[];
   competitorsMentioned: string[];
+  /** False when the engine answered from its own knowledge without live web search. */
+  grounded?: boolean;
   error?: string;
   ms?: number;
 };

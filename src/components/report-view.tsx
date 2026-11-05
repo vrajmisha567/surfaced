@@ -93,6 +93,12 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
               </tbody>
             </table>
           </Card>
+          {ok.some((a) => a.grounded === false) && (
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              Some answers came from the engine's own knowledge, without a live web search. They show what the model already
+              believes about local {cat.plural.toLowerCase()}, which can lag behind recent changes to your site.
+            </p>
+          )}
 
           <div className="mt-4 grid gap-3">
             {ok.slice(0, 12).map((a, i) => (
