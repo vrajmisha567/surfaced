@@ -52,6 +52,15 @@ const GENERIC = /^(cost|price|pricing|tips?|note|summary|conclusion|why|how|what
 const PLACES = new Set(
   [
     ...suburbs, "Adelaide", "South Australia", "SA", "Australia", "Adelaide Hills", "Fleurieu Peninsula", "Barossa",
+    // More metro suburbs that answers mention as headings.
+    "Malvern", "Hawthorn", "Kensington", "Kensington Park", "Rose Park", "Toorak Gardens", "Glen Osmond", "Fullarton",
+    "Wayville", "Millswood", "Kingswood", "Netherby", "Highgate", "Clarence Park", "Black Forest", "Plympton", "Edwardstown",
+    "Marleston", "Richmond", "Thebarton", "Hindmarsh", "Bowden", "Brompton", "Croydon", "Woodville", "Seaton", "Grange",
+    "Fulham", "Glenelg North", "Somerton Park", "Hove", "Seacliff", "Hallett Cove", "Reynella", "Christies Beach", "Seaford",
+    "Happy Valley", "Aberfoyle Park", "Flagstaff Hill", "Belair", "Eden Hills", "Pasadena", "St Marys", "Felixstow",
+    "Paradise", "Athelstone", "Rostrevor", "Newton", "Hectorville", "Tranmere", "Beulah Park", "Stepney", "Maylands",
+    "Marden", "Klemzig", "Windsor Gardens", "Gilles Plains", "Enfield", "Kilburn", "Nailsworth", "Broadview", "Medindie",
+    "Fitzroy", "Ovingham", "Collinswood", "Wynn Vale", "Greenwith", "Para Hills", "Ingle Farm", "Munno Para", "Craigmore",
     "Inner South", "Inner North", "Eastern Suburbs", "Western Suburbs", "Northern Suburbs", "Southern Suburbs",
     // Regulators, platforms and review sites that answers cite but aren't competitors.
     "Consumer and Business Services", "CBS", "ACCC", "Google", "Google Maps", "Google Reviews", "Google Business Profile",
@@ -76,6 +85,8 @@ export function extractNames(answer: string): string[] {
       .trim();
     if (n.length < 3 || n.length > 60) return;
     if (GENERIC.test(n) || PLACES.has(norm(n))) return;
+    // Category headings like "Highly Rated Local & Independent Plumbers" or "Top Electricians".
+    if (/^(highly|top|best|other|more|local|independent|trusted|recommended|reputable|popular)\b/i.test(n) && /s$/i.test(n)) return;
     if (n.split(" ").length > 8) return;
     if (!/[A-Z]/.test(n[0] ?? "")) return;
     // Business names are title case; "CCTV drain cameras" is a phrase, not a business.
