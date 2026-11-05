@@ -21,7 +21,7 @@ export type Pillar = {
   checks: Check[];
 };
 
-export type EngineId = "chatgpt" | "gemini" | "perplexity" | "claude";
+export type EngineId = "chatgpt" | "gemini" | "perplexity" | "claude" | "ollama";
 
 export type EngineAnswer = {
   engine: EngineId;

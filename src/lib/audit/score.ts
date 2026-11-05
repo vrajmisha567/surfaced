@@ -178,7 +178,9 @@ export function scoreCrawl(x: Extracted, cr: CrawlerAccess): Pillar {
 }
 
 export function scoreAi(answers: EngineAnswer[], measured: boolean): Pillar {
-  if (!measured) {
+  const ok = answers.filter((a) => !a.error);
+  // Every engine call failed (bad key, no credits, outage): don't score the business 0 for our problem.
+  if (!measured || !ok.length) {
     return {
       key: "ai",
       ...pillarMeta.ai,
@@ -188,13 +190,14 @@ export function scoreAi(answers: EngineAnswer[], measured: boolean): Pillar {
           id: "ai-unmeasured",
           label: "Live AI checks",
           status: "info",
-          detail: "Live engine checks aren't switched on for this audit. Your score is based on the five site factors that decide whether engines can cite you.",
+          detail: measured
+            ? "The AI engines didn't respond for this audit, so live checks were skipped. Your score is based on the five site factors that decide whether engines can cite you."
+            : "Live engine checks aren't switched on for this audit. Your score is based on the five site factors that decide whether engines can cite you.",
           weight: 0,
         },
       ],
     };
   }
-  const ok = answers.filter((a) => !a.error);
   const hits = ok.filter((a) => a.mentioned);
   const rate = ok.length ? hits.length / ok.length : 0;
   const top3 = hits.filter((a) => a.position !== null && a.position <= 3).length;

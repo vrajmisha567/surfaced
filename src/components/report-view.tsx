@@ -3,7 +3,7 @@ import type { AuditResult, EngineId } from "@/lib/types";
 import { getCategory } from "@/lib/categories";
 import { Card, Label, ScoreBar, ScoreRing, StatusPill, scoreWord } from "./ui";
 
-const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude" };
+const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude", ollama: "Open model" };
 
 export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; createdAt: string }) {
   const cat = getCategory(r.input.category);
@@ -16,15 +16,17 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
   })();
   const ok = r.ai.answers.filter((a) => !a.error);
   const hits = ok.filter((a) => a.mentioned);
+  // Engines were on but none answered (outage, no credits): report it as not run, not as "0 of 0".
+  const ran = r.ai.measured && ok.length > 0;
   const priority = r.pillars
     .flatMap((p) => p.checks.filter((c) => c.status === "fail" && c.fix).map((c) => ({ ...c, pillar: p.label })))
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 5);
 
   const verdict =
-    r.ai.measured && hits.length === 0
+    ran && hits.length === 0
       ? `${r.input.businessName} wasn't named in any of ${ok.length} AI answers to questions locals ask about ${cat.plural.toLowerCase()} in ${r.input.suburb}.`
-      : r.ai.measured
+      : ran
         ? `${r.input.businessName} was named in ${hits.length} of ${ok.length} AI answers. ${r.ai.topRivals[0] ? `${r.ai.topRivals[0].name} was named ${r.ai.topRivals[0].count} times.` : ""}`
         : `Your site scores ${r.overall}/100 on the factors AI engines use to decide which ${cat.plural.toLowerCase()} to recommend.`;
 
@@ -48,7 +50,7 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
         </div>
         <div className="grid grid-cols-2 border-t border-line md:grid-cols-4 md:divide-x md:divide-line">
           <Stat label="Overall grade" value={`${r.grade} · ${scoreWord(r.overall)}`} />
-          <Stat label="Named by AI" value={r.ai.measured ? `${hits.length} / ${ok.length}` : "Not run"} />
+          <Stat label="Named by AI" value={ran ? `${hits.length} / ${ok.length}` : r.ai.measured ? "No reply" : "Not run"} />
           <Stat label="Engines checked" value={r.ai.measured ? r.ai.engines.map((e) => engineName[e]).join(", ") : "—"} small />
           <Stat label="Most-named rival" value={r.ai.topRivals[0]?.name ?? "—"} small />
         </div>
@@ -77,7 +79,7 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
                       return (
                         <td key={e} className="px-3 py-3.5 text-center">
                           {!a || a.error ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-muted" title={a?.error}><Minus size={13} /> Error</span>
+                            <span className="inline-flex items-center gap-1 text-xs text-muted" title={a?.error}><Minus size={13} /> No reply</span>
                           ) : a.mentioned ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-good-soft px-1.5 py-0.5 text-xs font-medium text-good"><Check size={13} /> Named{a.position ? ` #${a.position}` : ""}</span>
                           ) : (

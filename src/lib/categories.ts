@@ -239,7 +239,10 @@ export function getCategory(id: string): Category {
 }
 
 export function fillTemplate(t: string, suburb: string, city = "Adelaide") {
-  return t.replaceAll("{suburb}", suburb || city).replaceAll("{city}", city);
+  const place = suburb || city;
+  // Avoid "in Adelaide, Adelaide" when the suburb is the city itself.
+  const filled = place.toLowerCase() === city.toLowerCase() ? t.replace(/\{suburb\}(?:,| and) \{city\}/g, city) : t;
+  return filled.replaceAll("{suburb}", place).replaceAll("{city}", city);
 }
 
 export function promptsFor(categoryId: string, suburb: string, limit = 4) {

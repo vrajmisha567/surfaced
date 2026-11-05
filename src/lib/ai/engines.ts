@@ -10,6 +10,7 @@ export const engineLabels: Record<EngineId, string> = {
   gemini: "Gemini",
   perplexity: "Perplexity",
   claude: "Claude",
+  ollama: "Open model",
 };
 
 export function enabledEngines(): EngineId[] {
@@ -18,6 +19,7 @@ export function enabledEngines(): EngineId[] {
   if (env.gemini) out.push("gemini");
   if (env.perplexity) out.push("perplexity");
   if (env.anthropic) out.push("claude");
+  if (env.ollama) out.push("ollama");
   return out;
 }
 
@@ -173,6 +175,52 @@ async function askClaude(prompt: string): Promise<EngineReply> {
   return { answer, citations: citations.filter((c) => (seen.has(c.url) ? false : (seen.add(c.url), true))) };
 }
 
+/* ---------- Ollama Cloud: web search, then an open model answers from those results ---------- */
+type ChatCompletion = { choices?: { message?: { content?: string } }[] };
+type OllamaSearch = { results?: { title?: string; url: string; content?: string }[] };
+
+const ollamaHeaders = () => ({ authorization: `Bearer ${env.ollama}` });
+
+async function ollamaChat(messages: { role: "system" | "user"; content: string }[]): Promise<string> {
+  const json = await postJson<ChatCompletion>(
+    "https://ollama.com/v1/chat/completions",
+    { model: env.ollamaModel, messages },
+    ollamaHeaders(),
+    90_000,
+  );
+  // Some reasoning models wrap their scratch work in <think> tags; drop it.
+  return (json.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+}
+
+/**
+ * This mimics how AI search assistants work (search, read, answer) using an open model.
+ * It's a useful signal, not a reading of ChatGPT or Gemini themselves.
+ */
+async function askOllama(prompt: string): Promise<EngineReply> {
+  const search = await postJson<OllamaSearch>(
+    "https://ollama.com/api/web_search",
+    { query: `${prompt} ${LOCATION.city} ${LOCATION.region}`, max_results: 8 },
+    ollamaHeaders(),
+    30_000,
+  );
+  const results = (search.results ?? []).filter((r) => r.url);
+  const sources = results
+    .map((r, i) => `[${i + 1}] ${r.title ?? r.url}\n${r.url}\n${(r.content ?? "").slice(0, 1200)}`)
+    .join("\n\n");
+
+  const answer = await ollamaChat([
+    {
+      role: "system",
+      content:
+        `You are an AI search assistant answering a user in ${LOCATION.city}, ${LOCATION.region}, Australia. ` +
+        "Answer the way a search assistant would: recommend specific local businesses by name, with a line on why each is a good pick. " +
+        "Use only the web results provided. Bold each business name. Cite sources as [n]. If the results don't support a recommendation, say so.",
+    },
+    { role: "user", content: `Question: ${prompt}\n\nWeb results:\n${sources || "(no results)"}` },
+  ]);
+  return { answer, citations: results.map((r) => ({ url: r.url, title: r.title })) };
+}
+
 export async function askEngine(engine: EngineId, prompt: string): Promise<EngineReply> {
   switch (engine) {
     case "chatgpt":
@@ -183,12 +231,14 @@ export async function askEngine(engine: EngineId, prompt: string): Promise<Engin
       return askPerplexity(prompt);
     case "claude":
       return askClaude(prompt);
+    case "ollama":
+      return askOllama(prompt);
   }
 }
 
 /**
  * Plain text generation for FAQ copy and outreach drafts.
- * Uses Claude if configured, then OpenAI; returns null so callers can fall back to templates.
+ * Uses Claude if configured, then OpenAI, then Ollama; returns null so callers can fall back to templates.
  */
 export async function writeText(system: string, prompt: string): Promise<string | null> {
   try {
@@ -217,6 +267,13 @@ export async function writeText(system: string, prompt: string): Promise<string 
         .map((c) => (c.type === "output_text" ? c.text ?? "" : ""))
         .join("")
         .trim();
+      return text || null;
+    }
+    if (env.ollama) {
+      const text = await ollamaChat([
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ]);
       return text || null;
     }
   } catch (e) {
