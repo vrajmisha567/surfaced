@@ -46,6 +46,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+section[id],
+form[id] {
+  scroll-margin-top: 88px;
+}
+
 ::selection {
   background: var(--color-accent);
   color: white;
