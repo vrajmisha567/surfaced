@@ -1,0 +1,160 @@
+import "server-only";
+import type { EngineAnswer, EngineId } from "@/lib/types";
+import { askEngine } from "./engines";
+
+const STOP = new Set(["pty", "ltd", "limited", "the", "co", "company", "group", "services", "service", "sa", "adelaide", "australia", "and", "of"]);
+
+export function norm(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function coreName(name: string) {
+  return norm(name)
+    .split(" ")
+    .filter((w) => !STOP.has(w))
+    .join(" ");
+}
+
+function domainRoot(url: string | undefined) {
+  if (!url) return null;
+  try {
+    const host = new URL(/^https?:/.test(url) ? url : `https://${url}`).hostname.replace(/^www\./, "");
+    return host;
+  } catch {
+    return null;
+  }
+}
+
+/** Does this answer mention the business, by name or by linking its domain? */
+export function mentions(answer: string, citations: { url: string }[], name: string, website?: string) {
+  const a = ` ${norm(answer)} `;
+  const full = norm(name);
+  const core = coreName(name);
+  if (full && a.includes(` ${full} `)) return true;
+  if (core.length >= 5 && a.includes(` ${core} `)) return true;
+  const host = domainRoot(website);
+  if (host) {
+    if (answer.toLowerCase().includes(host)) return true;
+    if (citations.some((c) => domainRoot(c.url) === host)) return true;
+  }
+  return false;
+}
+
+const GENERIC = /^(cost|price|pricing|tips?|note|summary|conclusion|why|how|what|when|where|services?|reviews?|location|hours|contact|recommendation|recommendations|key|important|pros|cons|overview|factors|considerations?|emergency|availability|license|licensing|insurance|step \d|option \d|top picks?|best overall|budget|quick answer)$/i;
+
+/** Pull business names out of a typical "here are the best X" answer. */
+export function extractNames(answer: string): string[] {
+  const names: string[] = [];
+  const push = (raw: string) => {
+    const n = raw
+      .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+      .replace(/[*_`#]/g, "")
+      .replace(/\s*[\(\[].*$/, "")
+      .replace(/\s*[–—:|-]\s.*$/, "")
+      .replace(/[.,:;]+$/, "")
+      .trim();
+    if (n.length < 3 || n.length > 60) return;
+    if (GENERIC.test(n)) return;
+    if (n.split(" ").length > 8) return;
+    if (!/[A-Z]/.test(n[0] ?? "")) return;
+    if (!names.some((x) => norm(x) === norm(n))) names.push(n);
+  };
+  for (const m of answer.matchAll(/\*\*([^*\n]{3,80})\*\*/g)) push(m[1]);
+  for (const m of answer.matchAll(/^\s*(?:\d+[.)]|[-•*])\s+([^\n]{3,90})/gm)) {
+    if (!m[1].startsWith("**")) push(m[1]);
+  }
+  for (const m of answer.matchAll(/^#{2,4}\s+(?:\d+[.)]\s*)?([^\n]{3,80})/gm)) push(m[1]);
+  return names.slice(0, 15);
+}
+
+export async function runPrompt(
+  engine: EngineId,
+  prompt: string,
+  business: { name: string; website?: string },
+  competitors: string[] = [],
+): Promise<EngineAnswer> {
+  const t0 = Date.now();
+  try {
+    const { answer, citations } = await askEngine(engine, prompt);
+    const mentioned = mentions(answer, citations, business.name, business.website);
+    const named = extractNames(answer);
+    const isUs = (n: string) => mentions(n, [], business.name);
+    const others = named.filter((n) => !isUs(n));
+
+    let position: number | null = null;
+    if (mentioned) {
+      const idx = named.findIndex(isUs);
+      if (idx >= 0) position = idx + 1;
+      else {
+        // Mentioned in prose, not in a list: rank by first appearance.
+        const at = norm(answer).indexOf(coreName(business.name) || norm(business.name));
+        position = named.filter((n) => norm(answer).indexOf(norm(n)) < at).length + 1;
+      }
+    }
+
+    return {
+      engine,
+      prompt,
+      answer,
+      citations: citations.slice(0, 12),
+      mentioned,
+      position,
+      othersNamed: others.slice(0, 10),
+      competitorsMentioned: competitors.filter((c) => c && mentions(answer, citations, c)),
+      ms: Date.now() - t0,
+    };
+  } catch (e) {
+    return {
+      engine,
+      prompt,
+      answer: "",
+      citations: [],
+      mentioned: false,
+      position: null,
+      othersNamed: [],
+      competitorsMentioned: [],
+      error: e instanceof Error ? e.message : String(e),
+      ms: Date.now() - t0,
+    };
+  }
+}
+
+/** Run a prompt set across engines with modest concurrency. */
+export async function runMatrix(
+  engines: EngineId[],
+  prompts: string[],
+  business: { name: string; website?: string },
+  competitors: string[] = [],
+  concurrency = 4,
+): Promise<EngineAnswer[]> {
+  const jobs = prompts.flatMap((p) => engines.map((e) => ({ e, p })));
+  const out: EngineAnswer[] = new Array(jobs.length);
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
+      while (i < jobs.length) {
+        const idx = i++;
+        out[idx] = await runPrompt(jobs[idx].e, jobs[idx].p, business, competitors);
+      }
+    }),
+  );
+  return out;
+}
+
+export function rivalsFrom(answers: EngineAnswer[]) {
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const a of answers)
+    for (const n of a.othersNamed) {
+      const k = norm(n);
+      const cur = counts.get(k) ?? { name: n, count: 0 };
+      cur.count++;
+      counts.set(k, cur);
+    }
+  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 8);
+}

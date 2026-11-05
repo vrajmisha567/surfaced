@@ -1,0 +1,79 @@
+import "server-only";
+import type { AuditInput, AuditResult, Pillar } from "@/lib/types";
+import { promptsFor } from "@/lib/categories";
+import { enabledEngines } from "@/lib/ai/engines";
+import { rivalsFrom, runMatrix } from "@/lib/ai/visibility";
+import { fetchPage, normaliseUrl } from "./fetch";
+import { extract } from "./extract";
+import { checkCrawlers } from "./robots";
+import { gradeFor, overallScore, pillarMeta, scoreAi, scoreContent, scoreCrawl, scoreEntity, scoreNap, scoreSchema } from "./score";
+
+export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {}): Promise<AuditResult> {
+  const t0 = Date.now();
+  const url = normaliseUrl(raw.url);
+  const input: AuditInput = { ...raw, url };
+
+  const engines = enabledEngines();
+  const prompts = promptsFor(input.category, input.suburb, opts.aiPrompts ?? 3);
+  const measured = engines.length > 0;
+
+  const [page, crawler, answers] = await Promise.all([
+    fetchPage(url).catch((e: unknown) => e as Error),
+    checkCrawlers(url).catch(() => null),
+    measured
+      ? runMatrix(engines, prompts, { name: input.businessName, website: url }, input.competitors ?? [])
+      : Promise.resolve([]),
+  ]);
+
+  const pillars: Pillar[] = [scoreAi(answers, measured)];
+  let extracted = null;
+  let fetchError: string | undefined;
+
+  if (page instanceof Error) {
+    const code = (page.cause as { code?: string } | undefined)?.code;
+    fetchError =
+      page.name === "AbortError" || page.message.includes("abort")
+        ? "The site took too long to respond (over 15 seconds)."
+        : code === "ENOTFOUND"
+          ? "That domain doesn't resolve. Check the address, or the site may be offline."
+          : code === "ECONNREFUSED" || code === "ECONNRESET"
+            ? "The server refused the connection."
+            : code?.startsWith("CERT") || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE"
+              ? "The site's SSL certificate is invalid. Browsers will show a security warning too."
+              : `Couldn't load the site: ${page.message}`;
+    for (const key of ["schema", "nap", "content", "entity", "crawl"] as const) {
+      pillars.push({
+        key,
+        ...pillarMeta[key],
+        score: 0,
+        checks: [{ id: `${key}-unreachable`, label: "Site reachable", status: "fail", detail: fetchError, fix: "Make sure the site loads publicly over HTTPS.", weight: 1 }],
+      });
+    }
+  } else {
+    extracted = extract(page.html, page.finalUrl, page.ms, page.renderer);
+    const cr = crawler ?? { robotsFound: false, blocked: [], allowed: [], llmsTxt: false, sitemap: false };
+    pillars.push(scoreSchema(extracted, input), scoreNap(extracted, input), scoreContent(extracted, input), scoreEntity(extracted), scoreCrawl(extracted, cr));
+  }
+
+  const ok = answers.filter((a) => !a.error);
+  const overall = overallScore(pillars);
+  return {
+    input,
+    overall,
+    grade: gradeFor(overall),
+    pillars,
+    extracted,
+    crawler,
+    ai: {
+      measured,
+      engines,
+      prompts,
+      answers,
+      mentionRate: ok.length ? ok.filter((a) => a.mentioned).length / ok.length : null,
+      topRivals: rivalsFrom(answers),
+    },
+    fetchError,
+    ranAt: new Date().toISOString(),
+    durationMs: Date.now() - t0,
+  };
+}
