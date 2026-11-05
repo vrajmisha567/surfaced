@@ -30,7 +30,8 @@ function supabase() {
 export const usingSupabase = () => !!supabase();
 
 /* ---------------- file store ---------------- */
-const FILE = path.join(process.cwd(), ".data", "surfaced.json");
+// On Vercel only /tmp is writable, and it's per-instance and temporary: fine for a demo, not for real data.
+const FILE = process.env.VERCEL ? path.join("/tmp", "surfaced.json") : path.join(process.cwd(), ".data", "surfaced.json");
 type FileDb = { [K in TableName]: Tables[K][] };
 let lock: Promise<unknown> = Promise.resolve();
 

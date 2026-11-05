@@ -11,11 +11,11 @@ import { env } from "@/lib/env";
 const COOKIE = "surfaced_admin";
 const DAYS = 14;
 
-function secret() {
+/** Null in production until SESSION_SECRET or ADMIN_PASSWORD is set: login stays disabled instead of crashing. */
+function secret(): string | null {
   const s = env.sessionSecret ?? env.adminPassword;
   if (s) return s;
-  if (process.env.NODE_ENV === "production") throw new Error("Set SESSION_SECRET and ADMIN_PASSWORD in production");
-  return "dev-only-secret";
+  return process.env.NODE_ENV === "production" ? null : "dev-only-secret";
 }
 
 /** In dev with no ADMIN_PASSWORD set, the password is "surfaced". Production requires one. */
@@ -25,7 +25,9 @@ export function adminPassword() {
 }
 
 function sign(payload: string) {
-  return createHmac("sha256", secret()).update(payload).digest("hex");
+  const s = secret();
+  if (!s) throw new Error("Login is disabled: set SESSION_SECRET and ADMIN_PASSWORD");
+  return createHmac("sha256", s).update(payload).digest("hex");
 }
 
 function safeEqual(a: string, b: string) {
@@ -36,7 +38,7 @@ function safeEqual(a: string, b: string) {
 
 export function checkPassword(input: string) {
   const pw = adminPassword();
-  return !!pw && safeEqual(sign(input), sign(pw));
+  return !!pw && !!secret() && safeEqual(sign(input), sign(pw));
 }
 
 export async function startSession() {
@@ -57,7 +59,7 @@ export async function endSession() {
 
 export async function isAdmin() {
   const v = (await cookies()).get(COOKIE)?.value;
-  if (!v) return false;
+  if (!v || !secret()) return false;
   const [exp, sig] = v.split(".");
   if (!exp || !sig || Number(exp) < Date.now()) return false;
   return safeEqual(sig, sign(`admin.${exp}`));
