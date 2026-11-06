@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BookmarkPlus } from "lucide-react";
 import { db } from "@/lib/db";
 import { ReportView } from "@/components/report-view";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
@@ -31,7 +31,14 @@ export default async function ReportPage({ params }: PageProps<"/report/[id]">) 
       <main className="mx-auto w-full max-w-5xl px-5 py-10">
         <div className="no-print mb-6 flex items-center justify-between">
           <div className="label">Free audit · {site.name}</div>
-          <PrintButton />
+          <div className="flex items-center gap-2">
+            {!audit.user_id && (
+              <LinkButton href={`/account?claim=${audit.id}`} variant="secondary" size="sm" prefetch={false}>
+                <BookmarkPlus size={14} /> Save to my account
+              </LinkButton>
+            )}
+            <PrintButton />
+          </div>
         </div>
         <ReportView r={audit.result} id={audit.id} createdAt={audit.created_at} />
 

@@ -1,38 +1,47 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { checkPassword, isAdmin, startSession, adminPassword } from "@/lib/auth";
-import { Button, Card, Field, Logo, inputCls } from "@/components/ui";
+import { AuthShell } from "@/components/auth-shell";
+import { GoogleButton, LoginForm, OrDivider } from "@/components/auth-forms";
+import { safeNext } from "@/lib/safe-next";
+import { currentAccount } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Log in", robots: { index: false } };
+export const metadata: Metadata = { title: "Log in", robots: { index: false } };
 
-async function login(form: FormData) {
-  "use server";
-  const pw = String(form.get("password") ?? "");
-  if (!checkPassword(pw)) redirect("/login?e=1");
-  await startSession();
-  redirect("/app");
-}
+const errors: Record<string, string> = {
+  "link-expired": "That link has expired or was already used. Log in, or request a new one.",
+  provider: "Google sign-in didn't complete. Try again.",
+  "missing-code": "That sign-in link was incomplete. Try again.",
+  unavailable: "Accounts aren't switched on yet. Try again soon.",
+};
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  if (await isAdmin()) redirect("/app");
-  const { e } = await searchParams;
-  const devDefault = !process.env.ADMIN_PASSWORD && process.env.NODE_ENV !== "production";
-  const disabled = !adminPassword();
+  const sp = await searchParams;
+  const next = safeNext(sp.next);
+  if (await currentAccount()) redirect(next);
+  const error = typeof sp.error === "string" ? (errors[sp.error] ?? errors.provider) : null;
+  const nextQ = sp.next ? `?next=${encodeURIComponent(next)}` : "";
+
   return (
-    <main className="grid-paper flex min-h-screen items-center justify-center px-5">
-      <Card className="w-full max-w-sm p-7">
-        <Logo />
-        <h1 className="mt-6 text-xl font-semibold tracking-tight">Operator console</h1>
-        <p className="mt-1 text-sm text-muted">Prospects, clients, tracking and reports.</p>
-        <form action={login} className="mt-6 space-y-4">
-          <Field label="Password" hint={devDefault ? "Dev mode: the password is “surfaced”. Set ADMIN_PASSWORD before deploying." : undefined}>
-            <input name="password" type="password" required autoFocus className={inputCls} disabled={disabled} />
-          </Field>
-          {e && <p className="rounded-md bg-bad-soft px-3 py-2 text-sm text-bad">Wrong password.</p>}
-          {disabled && <p className="rounded-md bg-warn-soft px-3 py-2 text-sm text-warn">Set ADMIN_PASSWORD to enable login.</p>}
-          <Button type="submit" className="w-full" disabled={disabled}>Log in</Button>
-        </form>
-      </Card>
-    </main>
+    <AuthShell
+      title="Welcome"
+      serif="back."
+      sub="Log in to see your audits, reports and progress."
+      footer={
+        <>
+          New to Surfaced?{" "}
+          <Link href={`/signup${nextQ}`} className="font-medium text-accent hover:underline">
+            Create a free account
+          </Link>
+        </>
+      }
+    >
+      {sp.signedout && <p className="mb-5 rounded-lg bg-paper-2 px-3 py-2.5 text-sm text-ink-2">You&apos;re signed out.</p>}
+      {error && <p className="mb-5 rounded-lg bg-bad-soft px-3 py-2.5 text-sm text-bad">{error}</p>}
+      <GoogleButton next={next} />
+      <OrDivider />
+      <LoginForm next={next} />
+    </AuthShell>
   );
 }

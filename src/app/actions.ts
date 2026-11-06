@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { runAudit } from "@/lib/audit/run";
 import { db } from "@/lib/db";
+import { currentAccount } from "@/lib/supabase/server";
 import { categoryFromForm } from "@/lib/categories";
 import { isKnownCountry } from "@/lib/locale";
 import { sendAuditReport } from "@/lib/email";
@@ -66,6 +67,7 @@ export async function runAuditAction(_prev: AuditFormState, form: FormData): Pro
       result,
       prospect_id: null,
       client_id: null,
+      user_id: (await currentAccount())?.id ?? null,
     });
     id = rec.id;
     if (parsed.data.email) {

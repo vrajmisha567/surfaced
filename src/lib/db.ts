@@ -152,6 +152,33 @@ export const db = {
     get: (id: string) => get("audits", id),
     create: (row: Omit<AuditRecord, "id" | "created_at">) => insert("audits", row),
     forClient: (clientId: string) => list("audits", { where: { client_id: clientId }, order: "created_at", desc: false }),
+    /** A customer's audits: run while signed in, or sent to their email. Newest first, without the heavy result. */
+    forAccount: async (userId: string, email: string) => {
+      type Row = Pick<AuditRecord, "id" | "created_at" | "url" | "business_name" | "suburb" | "city" | "country" | "category" | "overall_score" | "user_id">;
+      const cols = "id,created_at,url,business_name,suburb,city,country,category,overall_score,user_id";
+      const s = supabase();
+      let rows: Row[];
+      if (s) {
+        const [a, b] = await Promise.all([
+          s.from("audits").select(cols).eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+          s.from("audits").select(cols).ilike("email", email.replace(/[%_\\]/g, (c) => `\\${c}`)).order("created_at", { ascending: false }).limit(200),
+        ]);
+        if (a.error) throw new Error(`audits.forAccount: ${a.error.message}`);
+        rows = [...(a.data ?? []), ...(b.data ?? [])] as Row[];
+      } else {
+        const all = await list("audits", {});
+        rows = all.filter((r) => r.user_id === userId || (r.email ?? "").toLowerCase() === email.toLowerCase());
+      }
+      const seen = new Set<string>();
+      return rows.filter((r) => !seen.has(r.id) && seen.add(r.id)).sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
+    },
+    /** Attach an unclaimed audit to an account (from a report's "save to my account" link). */
+    claim: async (id: string, userId: string) => {
+      const a = await get("audits", id);
+      if (!a || a.user_id) return false;
+      await update("audits", id, { user_id: userId } as Partial<AuditRecord>);
+      return true;
+    },
     /** Slim rows for the public stats page: no answers, page text or contact details. */
     summaries: async (limit = 5000): Promise<AuditSummary[]> => {
       const s = supabase();

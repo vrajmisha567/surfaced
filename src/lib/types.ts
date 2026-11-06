@@ -164,6 +164,8 @@ export type AuditRecord = {
   result: AuditResult;
   prospect_id: string | null;
   client_id: string | null;
+  /** The customer account that ran it, when signed in. */
+  user_id?: string | null;
 };
 
 export const prospectStatuses = [

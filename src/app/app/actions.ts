@@ -35,7 +35,7 @@ function placeFields(x: { suburb?: string | null; city?: string | null; country?
 
 export async function logout() {
   await endSession();
-  redirect("/login");
+  redirect("/console");
 }
 
 /* ---------------- Prospects ---------------- */

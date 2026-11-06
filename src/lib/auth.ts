@@ -67,5 +67,5 @@ export async function isAdmin() {
 
 /** Call at the top of every admin page and server action. */
 export async function requireAdmin() {
-  if (!(await isAdmin())) redirect("/login");
+  if (!(await isAdmin())) redirect("/console");
 }
