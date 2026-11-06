@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { categories, getCategory, suburbs } from "@/lib/categories";
+import { getCategory } from "@/lib/categories";
+import { CategoryPicker, LocationFields } from "@/components/business-fields";
 import { prospectStatuses } from "@/lib/types";
 import { Card, Label, inputCls, EmptyState } from "@/components/ui";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/action-ui";
 import { addProspect, auditBatch, findProspects } from "../actions";
+import { placeLabel } from "@/lib/locale";
 
 export default async function ProspectsPage({ searchParams }: PageProps<"/app/prospects">) {
   const { status, category } = await searchParams;
@@ -27,12 +29,9 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/app/pr
           <div className="font-medium">Find businesses on Google</div>
           <p className="mt-1 text-xs text-muted">{env.googlePlaces ? "Google Places search, up to 20 per query." : "Add GOOGLE_PLACES_API_KEY to enable. Until then, add prospects by hand."}</p>
           <ActionForm action={findProspects} className="mt-4">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <select name="category" className={inputCls}>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.plural}</option>)}
-              </select>
-              <input name="suburb" list="sub" placeholder="Suburb" className={inputCls} />
-              <datalist id="sub">{suburbs.map((s) => <option key={s} value={s} />)}</datalist>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <CategoryPicker plural className="sm:col-span-2" />
+              <LocationFields />
               <SubmitButton>Search</SubmitButton>
             </div>
           </ActionForm>
@@ -44,10 +43,8 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/app/pr
               <input name="name" required placeholder="Business name" className={inputCls} />
               <input name="website" placeholder="Website" className={inputCls} />
               <input name="email" placeholder="Email" className={inputCls} />
-              <input name="suburb" placeholder="Suburb" className={inputCls} />
-              <select name="category" className={inputCls}>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
+              <CategoryPicker />
+              <LocationFields />
               <SubmitButton variant="secondary">Add prospect</SubmitButton>
             </div>
           </ActionForm>
@@ -62,7 +59,7 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/app/pr
             return n ? <FilterLink key={s} href={`/app/prospects?status=${s}`} active={status === s}>{s} {n}</FilterLink> : null;
           })}
           {usedCats.length > 1 && usedCats.map((c) => (
-            <FilterLink key={c} href={`/app/prospects?category=${c}`} active={category === c}>{getCategory(c).plural}</FilterLink>
+            <FilterLink key={c} href={`/app/prospects?category=${encodeURIComponent(c)}`} active={category === c}>{getCategory(c).plural}</FilterLink>
           ))}
         </div>
         {unaudited > 0 && <ActionButton action={auditBatch} variant="dark" pendingLabel="Auditing (up to 8)…">Audit {Math.min(8, unaudited)} un-audited</ActionButton>}
@@ -88,7 +85,7 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/app/pr
                     <div className="max-w-[260px] truncate text-xs text-muted">{p.website ?? "no website"}</div>
                   </td>
                   <td className="px-4 py-3 text-ink-2">{getCategory(p.category).label}</td>
-                  <td className="px-4 py-3 text-ink-2">{p.suburb ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-2">{placeLabel(p)}</td>
                   <td className="tabular px-4 py-3 text-ink-2">{p.rating ? `${p.rating}★ (${p.review_count})` : "—"}</td>
                   <td className="tabular px-4 py-3 font-medium">{p.score ?? "—"}</td>
                   <td className="px-4 py-3"><span className="rounded-md bg-paper-2 px-2 py-0.5 text-xs capitalize">{p.status}</span></td>

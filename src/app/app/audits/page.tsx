@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
 import { Card, Label, EmptyState } from "@/components/ui";
+import { placeLabel } from "@/lib/locale";
 
 export default async function AuditsPage() {
   const audits = await db.audits.list(300);
@@ -29,7 +30,7 @@ export default async function AuditsPage() {
                   <tr key={a.id} className="hover:bg-paper/60">
                     <td className="px-4 py-3">
                       <Link href={`/report/${a.id}`} className="font-medium hover:underline">{a.business_name}</Link>
-                      <div className="text-xs text-muted">{a.suburb}</div>
+                      <div className="text-xs text-muted">{placeLabel(a)}</div>
                     </td>
                     <td className="px-4 py-3 text-ink-2">{getCategory(a.category).label}</td>
                     <td className="label px-4 py-3">{a.prospect_id ? "Prospect" : a.client_id ? "Client" : "Inbound"}</td>

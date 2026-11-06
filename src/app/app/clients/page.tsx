@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { categories, getCategory } from "@/lib/categories";
+import { getCategory } from "@/lib/categories";
+import { CategoryPicker, LocationFields } from "@/components/business-fields";
 import { Card, Label, inputCls, EmptyState } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/action-ui";
 import { createClient, loadDemoClient } from "../actions";
+import { placeLabel } from "@/lib/locale";
 
 export default async function ClientsPage() {
   const clients = await db.clients.list();
@@ -34,7 +36,7 @@ export default async function ClientsPage() {
                 <tr key={c.id} className="hover:bg-paper/60">
                   <td className="px-4 py-3">
                     <Link href={`/app/clients/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
-                    <div className="text-xs text-muted">{c.suburb}</div>
+                    <div className="text-xs text-muted">{placeLabel(c)}</div>
                   </td>
                   <td className="px-4 py-3 text-ink-2">{getCategory(c.category).label}</td>
                   <td className="px-4 py-3 capitalize text-ink-2">{c.plan}</td>
@@ -60,8 +62,8 @@ export default async function ClientsPage() {
           <div className="grid gap-2 sm:grid-cols-3">
             <input name="name" required placeholder="Business name" className={inputCls} />
             <input name="website" required placeholder="Website" className={inputCls} />
-            <input name="suburb" required placeholder="Suburb" className={inputCls} />
-            <select name="category" className={inputCls}>{categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
+            <LocationFields />
+            <CategoryPicker className="sm:col-span-2" />
             <select name="plan" className={inputCls} defaultValue="visibility">
               <option value="pilot">Free pilot</option>
               <option value="fixpack">Fix Pack</option>

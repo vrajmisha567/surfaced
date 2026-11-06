@@ -13,6 +13,7 @@ import { ActionButton, SubmitButton } from "@/components/action-ui";
 import { CopyButton } from "@/components/print-button";
 import { ClientDashboard } from "@/components/client-dashboard";
 import { auditClient, emailMonthlyReport, toggleFix, trackNow, updateClientSetup } from "../../actions";
+import { placeLabel } from "@/lib/locale";
 
 export const maxDuration = 300;
 
@@ -34,7 +35,7 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/a
       <Link href="/app/clients" className="text-sm text-muted hover:text-ink">← Clients</Link>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Label>{getCategory(c.category).label} · {c.suburb} · <span className="capitalize">{c.plan}</span> · ${Number(c.monthly_value)}/mo</Label>
+          <Label>{getCategory(c.category).label} · {placeLabel(c)} · <span className="capitalize">{c.plan}</span> · ${Number(c.monthly_value)}/mo</Label>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{c.name}</h1>
           <a href={c.website} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-sm text-muted hover:text-ink">{c.website.replace(/^https?:\/\//, "")} <ExternalLink size={12} /></a>
         </div>

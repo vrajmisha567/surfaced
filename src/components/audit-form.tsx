@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { runAuditAction, type AuditFormState } from "@/app/actions";
-import { categories, suburbs } from "@/lib/categories";
+import { CategoryPicker, LocationFields } from "./business-fields";
 import { Button, inputCls } from "./ui";
 
 const steps = [
@@ -63,25 +63,11 @@ export function AuditForm({ defaultCategory = "plumber" }: { defaultCategory?: s
       <div className="grid gap-3 sm:grid-cols-2">
         <input name="businessName" required placeholder="Business name" defaultValue={f.businessName} className={inputCls} aria-label="Business name" />
         <input name="url" required placeholder="yourbusiness.com.au" defaultValue={f.url} className={inputCls} aria-label="Website" inputMode="url" />
-        <select name="category" defaultValue={f.category ?? defaultCategory} className={inputCls} aria-label="Category">
-          {["Trades", "Health", "Food", "Beauty", "Auto", "Services"].map((g) => (
-            <optgroup key={g} label={g}>
-              {categories
-                .filter((c) => c.group === g)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </select>
-        <input name="suburb" required list="suburbs" placeholder="Suburb, e.g. Norwood" defaultValue={f.suburb} className={inputCls} aria-label="Suburb" />
-        <datalist id="suburbs">
-          {suburbs.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
+        <CategoryPicker
+          className="sm:col-span-2"
+          defaultValue={f.category === "custom" && f.customType ? `custom:${f.customType}` : (f.category ?? defaultCategory)}
+        />
+        <LocationFields defaults={{ suburb: f.suburb, city: f.city, country: f.country }} />
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <input name="email" type="email" placeholder="Email for a copy (optional)" defaultValue={f.email} className={inputCls} aria-label="Email" />

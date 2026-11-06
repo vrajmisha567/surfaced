@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 import type { EngineId } from "@/lib/types";
+import { getCountry, type Place } from "@/lib/locale";
 
 export type EngineReply = { answer: string; citations: { url: string; title?: string }[]; grounded?: boolean };
 
@@ -23,7 +24,23 @@ export function enabledEngines(): EngineId[] {
   return out;
 }
 
-const LOCATION = { city: "Adelaide", region: "South Australia", country: "AU", timezone: "Australia/Adelaide" };
+/** Where the person asking is, so web-search engines localise results. */
+export type Loc = { city: string; country: string; countryName: string; region?: string; timezone?: string };
+
+const ADELAIDE: Loc = { city: "Adelaide", region: "South Australia", country: "AU", countryName: "Australia", timezone: "Australia/Adelaide" };
+
+export function locFor(place?: Place): Loc {
+  if (!place) return ADELAIDE;
+  if (place.country === "AU" && place.city.toLowerCase() === "adelaide") return ADELAIDE;
+  return { city: place.city || place.area, country: place.country, countryName: getCountry(place.country).name };
+}
+
+/** user_location for OpenAI and Anthropic web search; only the fields we actually know. */
+function userLocation(l: Loc) {
+  return { type: "approximate" as const, city: l.city, country: l.country, ...(l.region ? { region: l.region } : {}), ...(l.timezone ? { timezone: l.timezone } : {}) };
+}
+
+const where = (l: Loc) => [l.city, l.region, l.countryName].filter(Boolean).join(", ");
 
 async function postJson<T>(url: string, body: unknown, headers: Record<string, string>, timeoutMs = 60000): Promise<T> {
   const ctrl = new AbortController();
@@ -54,13 +71,13 @@ type OpenAIResponse = {
   }[];
 };
 
-async function askChatGPT(prompt: string): Promise<EngineReply> {
+async function askChatGPT(prompt: string, loc: Loc): Promise<EngineReply> {
   const json = await postJson<OpenAIResponse>(
     "https://api.openai.com/v1/responses",
     {
       model: env.openaiModel,
       input: prompt,
-      tools: [{ type: "web_search", user_location: { type: "approximate", ...LOCATION } }],
+      tools: [{ type: "web_search", user_location: userLocation(loc) }],
     },
     { authorization: `Bearer ${env.openai}` },
   );
@@ -92,18 +109,18 @@ let geminiSearchBlocked = false;
 // Free-tier limits differ per model, so step down to lighter models when one is busy (503) or rate-limited (429).
 const GEMINI_FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3.1-flash-lite"];
 
-async function geminiCall(model: string, prompt: string, search: boolean) {
+async function geminiCall(model: string, prompt: string, search: boolean, loc: Loc) {
   return postJson<GeminiResponse>(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
-      contents: [{ role: "user", parts: [{ text: search ? prompt : `I'm in ${LOCATION.city}, ${LOCATION.region}, Australia. ${prompt}` }] }],
+      contents: [{ role: "user", parts: [{ text: search ? prompt : `I'm in ${where(loc)}. ${prompt}` }] }],
       ...(search ? { tools: [{ google_search: {} }] } : {}),
     },
     { "x-goog-api-key": env.gemini! },
   );
 }
 
-async function askGemini(prompt: string): Promise<EngineReply> {
+async function askGemini(prompt: string, loc: Loc): Promise<EngineReply> {
   let json: GeminiResponse | null = null;
   let grounded = !geminiSearchBlocked;
   const models = [...new Set([env.geminiModel, ...GEMINI_FALLBACK_MODELS])];
@@ -111,14 +128,14 @@ async function askGemini(prompt: string): Promise<EngineReply> {
     try {
       if (grounded) {
         try {
-          json = await geminiCall(model, prompt, true);
+          json = await geminiCall(model, prompt, true, loc);
         } catch (e) {
           if (httpStatus(e) !== 429) throw e;
           geminiSearchBlocked = true;
           grounded = false;
         }
       }
-      json ??= await geminiCall(model, prompt, false);
+      json ??= await geminiCall(model, prompt, false, loc);
       break;
     } catch (e) {
       const busy = httpStatus(e) === 429 || httpStatus(e) === 503;
@@ -140,13 +157,13 @@ type PerplexityResponse = {
   search_results?: { url: string; title?: string }[];
 };
 
-async function askPerplexity(prompt: string): Promise<EngineReply> {
+async function askPerplexity(prompt: string, loc: Loc): Promise<EngineReply> {
   const json = await postJson<PerplexityResponse>(
     "https://api.perplexity.ai/chat/completions",
     {
       model: env.perplexityModel,
       messages: [{ role: "user", content: prompt }],
-      web_search_options: { user_location: { country: "AU", city: "Adelaide", region: "South Australia" } },
+      web_search_options: { user_location: { country: loc.country, city: loc.city, ...(loc.region ? { region: loc.region } : {}) } },
     },
     { authorization: `Bearer ${env.perplexity}` },
   );
@@ -164,7 +181,7 @@ function claudeClient() {
   return anthropic;
 }
 
-async function askClaude(prompt: string): Promise<EngineReply> {
+async function askClaude(prompt: string, loc: Loc): Promise<EngineReply> {
   const client = claudeClient();
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: prompt }];
   let answer = "";
@@ -183,7 +200,7 @@ async function askClaude(prompt: string): Promise<EngineReply> {
           type: "web_search_20260209",
           name: "web_search",
           max_uses: 4,
-          user_location: { type: "approximate", ...LOCATION },
+          user_location: userLocation(loc),
         },
       ],
       messages,
@@ -231,10 +248,10 @@ async function ollamaChat(messages: { role: "system" | "user"; content: string }
  * This mimics how AI search assistants work (search, read, answer) using an open model.
  * It's a useful signal, not a reading of ChatGPT or Gemini themselves.
  */
-async function askOllama(prompt: string): Promise<EngineReply> {
+async function askOllama(prompt: string, loc: Loc): Promise<EngineReply> {
   const search = await postJson<OllamaSearch>(
     "https://ollama.com/api/web_search",
-    { query: `${prompt} ${LOCATION.city} ${LOCATION.region}`, max_results: 8 },
+    { query: `${prompt} ${where(loc)}`, max_results: 8 },
     ollamaHeaders(),
     30_000,
   );
@@ -247,7 +264,7 @@ async function askOllama(prompt: string): Promise<EngineReply> {
     {
       role: "system",
       content:
-        `You are an AI search assistant answering a user in ${LOCATION.city}, ${LOCATION.region}, Australia. ` +
+        `You are an AI search assistant answering a user in ${where(loc)}. ` +
         "Answer the way a search assistant would: recommend specific local businesses by name, with a line on why each is a good pick. " +
         "Use only the web results provided. Bold each business name. Cite sources as [n]. If the results don't support a recommendation, say so.",
     },
@@ -256,18 +273,19 @@ async function askOllama(prompt: string): Promise<EngineReply> {
   return { answer, citations: results.map((r) => ({ url: r.url, title: r.title })) };
 }
 
-export async function askEngine(engine: EngineId, prompt: string): Promise<EngineReply> {
+export async function askEngine(engine: EngineId, prompt: string, place?: Place): Promise<EngineReply> {
+  const loc = locFor(place);
   switch (engine) {
     case "chatgpt":
-      return askChatGPT(prompt);
+      return askChatGPT(prompt, loc);
     case "gemini":
-      return askGemini(prompt);
+      return askGemini(prompt, loc);
     case "perplexity":
-      return askPerplexity(prompt);
+      return askPerplexity(prompt, loc);
     case "claude":
-      return askClaude(prompt);
+      return askClaude(prompt, loc);
     case "ollama":
-      return askOllama(prompt);
+      return askOllama(prompt, loc);
   }
 }
 

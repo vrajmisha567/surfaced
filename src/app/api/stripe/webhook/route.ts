@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { plans } from "@/lib/site";
 import { fixesFromAudit } from "@/lib/fixpack";
 import { promptsFor } from "@/lib/categories";
+import { placeOf } from "@/lib/locale";
 import type { Client } from "@/lib/types";
 
 /**
@@ -41,7 +42,9 @@ export async function POST(req: NextRequest) {
       await db.clients.create({
         name: audit?.business_name ?? session.customer_details?.name ?? email ?? "New client",
         website: audit?.url ?? "",
-        suburb: audit?.suburb ?? "Adelaide",
+        suburb: audit?.suburb ?? "",
+        city: audit ? placeOf(audit).city : "Adelaide",
+        country: audit?.country ?? "AU",
         category: audit?.category ?? "plumber",
         contact_name: session.customer_details?.name ?? null,
         contact_email: email,
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
         status: "active",
         monthly_value: plan?.interval === "month" ? plan.price : 0,
         competitors: (audit?.result.ai.topRivals ?? []).slice(0, 3).map((r) => r.name),
-        prompts: audit ? promptsFor(audit.category, audit.suburb, 5) : [],
+        prompts: audit ? promptsFor(audit.category, placeOf(audit), 5) : [],
         fixes: audit ? fixesFromAudit(audit.result) : [],
         stripe_customer_id: customerId,
         baseline_audit_id: auditId,

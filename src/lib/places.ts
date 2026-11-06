@@ -26,8 +26,11 @@ type PlacesResponse = {
   error?: { message: string };
 };
 
-/** Google Places API (New) Text Search, biased to Adelaide. */
-export async function searchPlaces(query: string, max = 20): Promise<PlaceResult[]> {
+/**
+ * Google Places API (New) Text Search. The query carries the city; regionCode keeps
+ * results in the right country, and Adelaide searches also get a map bias.
+ */
+export async function searchPlaces(query: string, opts: { country?: string; adelaide?: boolean } = {}, max = 20): Promise<PlaceResult[]> {
   if (!env.googlePlaces) throw new Error("GOOGLE_PLACES_API_KEY is not set");
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -40,8 +43,8 @@ export async function searchPlaces(query: string, max = 20): Promise<PlaceResult
     body: JSON.stringify({
       textQuery: query,
       pageSize: Math.min(max, 20),
-      regionCode: "AU",
-      locationBias: { circle: { center: { latitude: -34.9285, longitude: 138.6007 }, radius: 40000 } },
+      regionCode: opts.country ?? "AU",
+      ...(opts.adelaide ? { locationBias: { circle: { center: { latitude: -34.9285, longitude: 138.6007 }, radius: 40000 } } } : {}),
     }),
     cache: "no-store",
   });
@@ -53,7 +56,13 @@ export async function searchPlaces(query: string, max = 20): Promise<PlaceResult
     website: p.websiteUri ?? null,
     phone: p.nationalPhoneNumber ?? null,
     address: p.formattedAddress ?? null,
-    suburb: p.addressComponents?.find((c) => c.types.includes("locality"))?.longText ?? null,
+    // In Australia "locality" is the suburb; elsewhere it's the city, and the area is a neighbourhood or sublocality.
+    suburb:
+      (opts.country && opts.country !== "AU"
+        ? p.addressComponents?.find((c) => c.types.includes("neighborhood") || c.types.includes("sublocality"))?.longText
+        : undefined) ??
+      p.addressComponents?.find((c) => c.types.includes("locality"))?.longText ??
+      null,
     rating: p.rating ?? null,
     review_count: p.userRatingCount ?? null,
   }));

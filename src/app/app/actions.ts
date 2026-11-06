@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { endSession, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getCategory, promptsFor } from "@/lib/categories";
+import { categoryFromForm, getCategory, promptsFor } from "@/lib/categories";
+import { isKnownCountry, placeOf, shortPlace } from "@/lib/locale";
 import { runAudit } from "@/lib/audit/run";
 import { searchPlaces } from "@/lib/places";
 import { fixesFromAudit } from "@/lib/fixpack";
@@ -16,6 +17,22 @@ import { prospectStatuses, type Client, type ProspectStatus } from "@/lib/types"
 
 export type ActionResult = { ok: boolean; message: string };
 
+/** Suburb/area, city and country from a form. Defaults to Adelaide, Australia. */
+function locationFromForm(form: FormData) {
+  const country = String(form.get("country") ?? "AU").trim().toUpperCase();
+  return placeOf({
+    suburb: String(form.get("suburb") ?? "").trim(),
+    city: String(form.get("city") ?? "").trim() || (country === "AU" ? "Adelaide" : ""),
+    country: isKnownCountry(country) ? country : "AU",
+  });
+}
+
+/** suburb/city/country for a row, with legacy rows treated as Adelaide, Australia. */
+function placeFields(x: { suburb?: string | null; city?: string | null; country?: string | null }) {
+  const p = placeOf(x);
+  return { suburb: p.area, city: p.city, country: p.country };
+}
+
 export async function logout() {
   await endSession();
   redirect("/login");
@@ -25,11 +42,14 @@ export async function logout() {
 
 export async function findProspects(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const category = String(form.get("category") ?? "plumber");
-  const suburb = String(form.get("suburb") ?? "").trim() || "Adelaide";
+  const category = categoryFromForm(String(form.get("category") ?? "plumber"), String(form.get("customType") ?? ""));
+  if (!category) return { ok: false, message: "Pick a business type, or type one under Other." };
+  const place = locationFromForm(form);
+  const suburb = shortPlace(place);
   const cat = getCategory(category);
   try {
-    const places = await searchPlaces(`${cat.plural} in ${suburb} SA`);
+    const isAdelaide = place.country === "AU" && place.city.toLowerCase() === "adelaide";
+    const places = await searchPlaces(`${cat.plural} in ${suburb}${isAdelaide ? " SA" : ""}`, { country: place.country, adelaide: isAdelaide });
     const existing = new Set((await db.prospects.list()).map((p) => p.place_id).filter(Boolean));
     let added = 0;
     for (const p of places) {
@@ -40,7 +60,9 @@ export async function findProspects(_: ActionResult | null, form: FormData): Pro
         phone: p.phone,
         email: null,
         address: p.address,
-        suburb: p.suburb ?? suburb,
+        suburb: p.suburb ?? place.area,
+        city: place.city,
+        country: place.country,
         category,
         place_id: p.place_id,
         rating: p.rating,
@@ -66,13 +88,19 @@ const manualSchema = z.object({
   email: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   suburb: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  country: z.string().trim().optional(),
   category: z.string(),
+  customType: z.string().trim().optional(),
 });
 
 export async function addProspect(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireAdmin();
   const p = manualSchema.safeParse(Object.fromEntries(form));
   if (!p.success) return { ok: false, message: "Name is required" };
+  const category = categoryFromForm(p.data.category, p.data.customType);
+  if (!category) return { ok: false, message: "Pick a business type, or type one under Other." };
+  const place = locationFromForm(form);
   await db.prospects.create({
     name: p.data.name,
     website: p.data.website || null,
@@ -80,7 +108,9 @@ export async function addProspect(_: ActionResult | null, form: FormData): Promi
     phone: p.data.phone || null,
     address: null,
     suburb: p.data.suburb || null,
-    category: p.data.category,
+    city: place.city,
+    country: place.country,
+    category,
     place_id: null,
     rating: null,
     review_count: null,
@@ -100,11 +130,13 @@ export async function auditProspect(id: string): Promise<ActionResult> {
   if (!p) return { ok: false, message: "Prospect not found" };
   if (!p.website) return { ok: false, message: "No website to audit" };
   try {
-    const result = await runAudit({ url: p.website, businessName: p.name, suburb: p.suburb ?? "Adelaide", category: p.category });
+    const result = await runAudit({ url: p.website, businessName: p.name, ...placeFields(p), category: p.category });
     const rec = await db.audits.create({
       url: result.input.url,
       business_name: p.name,
       suburb: result.input.suburb,
+      city: result.input.city ?? "",
+      country: result.input.country ?? "AU",
       category: p.category,
       email: null,
       overall_score: result.overall,
@@ -175,7 +207,7 @@ export async function convertProspect(id: string, form: FormData) {
   const client = await db.clients.create({
     name: p.name,
     website: p.website,
-    suburb: p.suburb ?? "Adelaide",
+    ...placeFields(p),
     category: p.category,
     contact_name: null,
     contact_email: p.email,
@@ -183,7 +215,7 @@ export async function convertProspect(id: string, form: FormData) {
     status: "active",
     monthly_value: planValue(plan),
     competitors: (audit?.result.ai.topRivals ?? []).slice(0, 3).map((r) => r.name),
-    prompts: promptsFor(p.category, p.suburb ?? "Adelaide", 5),
+    prompts: promptsFor(p.category, placeOf(p), 5),
     fixes: audit ? fixesFromAudit(audit.result) : [],
     stripe_customer_id: null,
     baseline_audit_id: audit?.id ?? null,
@@ -196,8 +228,11 @@ export async function convertProspect(id: string, form: FormData) {
 const clientSchema = z.object({
   name: z.string().trim().min(2),
   website: z.string().trim().min(4),
-  suburb: z.string().trim().min(2),
+  suburb: z.string().trim().optional().default(""),
+  city: z.string().trim().min(2),
+  country: z.string().trim().toUpperCase().refine(isKnownCountry),
   category: z.string(),
+  customType: z.string().trim().optional(),
   contact_email: z.string().trim().optional(),
   plan: z.enum(["fixpack", "visibility", "growth", "pilot"]),
 });
@@ -205,15 +240,20 @@ const clientSchema = z.object({
 export async function createClient(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireAdmin();
   const p = clientSchema.safeParse(Object.fromEntries(form));
-  if (!p.success) return { ok: false, message: "Fill in name, website, suburb and plan" };
+  if (!p.success) return { ok: false, message: "Fill in name, website, city, country and plan" };
+  const category = categoryFromForm(p.data.category, p.data.customType);
+  if (!category) return { ok: false, message: "Pick a business type, or type one under Other." };
+  const { customType: _unused, ...data } = p.data;
+  void _unused;
   const c = await db.clients.create({
-    ...p.data,
+    ...data,
+    category,
     contact_name: null,
     contact_email: p.data.contact_email || null,
     status: "active",
     monthly_value: planValue(p.data.plan),
     competitors: [],
-    prompts: promptsFor(p.data.category, p.data.suburb, 5),
+    prompts: promptsFor(category, placeOf(data), 5),
     fixes: [],
     stripe_customer_id: null,
     baseline_audit_id: null,
@@ -253,11 +293,13 @@ export async function auditClient(id: string): Promise<ActionResult> {
   const c = await db.clients.get(id);
   if (!c) return { ok: false, message: "Client not found" };
   try {
-    const result = await runAudit({ url: c.website, businessName: c.name, suburb: c.suburb, category: c.category, competitors: c.competitors });
+    const result = await runAudit({ url: c.website, businessName: c.name, ...placeFields(c), category: c.category, competitors: c.competitors });
     const rec = await db.audits.create({
       url: result.input.url,
       business_name: c.name,
-      suburb: c.suburb,
+      suburb: result.input.suburb,
+      city: result.input.city ?? "",
+      country: result.input.country ?? "AU",
       category: c.category,
       email: null,
       overall_score: result.overall,

@@ -1,6 +1,7 @@
 import "server-only";
 import type { AuditInput, AuditResult, Pillar } from "@/lib/types";
 import { promptsFor } from "@/lib/categories";
+import { placeOf } from "@/lib/locale";
 import { enabledEngines } from "@/lib/ai/engines";
 import { rivalsFrom, runMatrix } from "@/lib/ai/visibility";
 import { fetchPage, normaliseUrl } from "./fetch";
@@ -11,17 +12,18 @@ import { gradeFor, overallScore, pillarMeta, scoreAi, scoreContent, scoreCrawl, 
 export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {}): Promise<AuditResult> {
   const t0 = Date.now();
   const url = normaliseUrl(raw.url);
-  const input: AuditInput = { ...raw, url };
+  const place = placeOf(raw);
+  const input: AuditInput = { ...raw, url, suburb: place.area, city: place.city, country: place.country };
 
   const engines = enabledEngines();
-  const prompts = promptsFor(input.category, input.suburb, opts.aiPrompts ?? 3);
+  const prompts = promptsFor(input.category, place, opts.aiPrompts ?? 3);
   const measured = engines.length > 0;
 
   const [page, crawler, answers] = await Promise.all([
     fetchPage(url).catch((e: unknown) => e as Error),
     checkCrawlers(url).catch(() => null),
     measured
-      ? runMatrix(engines, prompts, { name: input.businessName, website: url }, input.competitors ?? [])
+      ? runMatrix(engines, prompts, { name: input.businessName, website: url }, input.competitors ?? [], place)
       : Promise.resolve([]),
   ]);
 
@@ -50,9 +52,9 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
       });
     }
   } else {
-    extracted = extract(page.html, page.finalUrl, page.ms, page.renderer);
+    extracted = { ...extract(page.html, page.finalUrl, page.ms, page.renderer, place.country), botBlocked: page.botBlocked };
     const cr = crawler ?? { robotsFound: false, blocked: [], allowed: [], llmsTxt: false, sitemap: false };
-    pillars.push(scoreSchema(extracted, input), scoreNap(extracted, input), scoreContent(extracted, input), scoreEntity(extracted), scoreCrawl(extracted, cr));
+    pillars.push(scoreSchema(extracted, input), scoreNap(extracted, input), scoreContent(extracted, input), scoreEntity(extracted, input), scoreCrawl(extracted, cr));
   }
 
   const ok = answers.filter((a) => !a.error);

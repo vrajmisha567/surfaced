@@ -1,47 +1,54 @@
 import "server-only";
 import * as cheerio from "cheerio";
 import type { Extracted } from "@/lib/types";
+import { categories } from "@/lib/categories";
+import { getCountry, isPlausiblePhone, normalisePhone as normaliseFor } from "@/lib/locale";
 
 const SOCIAL_HOSTS = [
-  "facebook.com",
-  "instagram.com",
-  "linkedin.com",
-  "youtube.com",
-  "tiktok.com",
-  "x.com",
-  "twitter.com",
-  "pinterest.com",
-  "google.com/maps",
-  "maps.app.goo.gl",
-  "g.page",
-  "yelp.com",
-  "hipages.com.au",
-  "truelocal.com.au",
-  "yellowpages.com.au",
+  "facebook.com", "instagram.com", "linkedin.com", "youtube.com", "tiktok.com", "x.com", "twitter.com", "pinterest.com",
+  "google.com/maps", "maps.app.goo.gl", "g.page", "yelp.", "tripadvisor.", "foursquare.com", "nextdoor.com", "bbb.org",
+  "angi.com", "houzz.", "thumbtack.com", "checkatrade.com", "trustatrader.com", "yell.com", "justdial.com", "practo.com",
+  "zomato.com", "fresha.com", "treatwell.", "healthgrades.com", "zocdoc.com", "homestars.com",
+  "hipages.com.au", "truelocal.com.au", "yellowpages.", "healthengine.com.au", "hotdoc.com.au", "oneflare.com.au",
 ];
 
 const LOCAL_TYPES = new Set([
-  "LocalBusiness", "Plumber", "Electrician", "RoofingContractor", "HVACBusiness", "GeneralContractor",
-  "HomeAndConstructionBusiness", "Dentist", "Physiotherapy", "MedicalBusiness", "MedicalClinic",
-  "CafeOrCoffeeShop", "Restaurant", "FoodEstablishment", "HairSalon", "BeautySalon", "HealthAndBeautyBusiness",
-  "AutoRepair", "AutomotiveBusiness", "AccountingService", "ProfessionalService", "Store", "Locksmith",
-  "MovingCompany", "HousePainter", "DaySpa", "NailSalon", "Optician", "Bakery", "BarOrPub",
+  "LocalBusiness", "MedicalBusiness", "MedicalClinic", "FoodEstablishment", "HealthAndBeautyBusiness",
+  "AutomotiveBusiness", "ProfessionalService", "Store", "HomeAndConstructionBusiness", "SportsActivityLocation",
+  "LodgingBusiness", "EntertainmentBusiness", "FinancialService", "LegalService", "EmergencyService", "ChildCare",
+  "Physician", "Attorney", "Notary", "TravelAgency", "SelfStorage", "ShoppingCenter", "GolfCourse", "HealthClub",
+  ...categories.map((c) => c.schemaType),
 ]);
 
 export function isLocalType(t: string) {
   return LOCAL_TYPES.has(t);
 }
 
-/** AU phone numbers: 08 xxxx xxxx (SA landline), 04xx mobiles, 1300/1800, +61 forms. */
-const PHONE_RE = /(?:\+?61[\s-]?|\(?0)(?:[2378]\)?[\s-]?\d{4}[\s-]?\d{4}|4\d{2}[\s-]?\d{3}[\s-]?\d{3})|1[38]00[\s-]?\d{3}[\s-]?\d{3}|13[\s-]?\d{2}[\s-]?\d{2}/g;
-const SA_ADDRESS_RE = /\d{1,5}[A-Za-z]?\s+[A-Z][A-Za-z'.-]+(?:\s+[A-Z][A-Za-z'.-]+){0,3}\s+(?:St|Street|Rd|Road|Ave|Avenue|Tce|Terrace|Pde|Parade|Hwy|Highway|Dr|Drive|Ct|Court|Pl|Place|Lane|Ln|Way|Cres|Crescent|Blvd|Boulevard)\b[^<\n]{0,60}?\b(?:SA|South Australia)\s*5\d{3}/g;
-const POSTCODE_RE = /\b(?:SA|South Australia)\s*(5\d{3})\b/g;
+/** AU phone numbers: 08 xxxx xxxx landlines, 04xx mobiles, 1300/1800, 13xx xx, +61 forms. */
+const AU_PHONE_RE = /(?:\+?61[\s-]?|\(?0)(?:[2378]\)?[\s-]?\d{4}[\s-]?\d{4}|4\d{2}[\s-]?\d{3}[\s-]?\d{3})|1[38]00[\s-]?\d{3}[\s-]?\d{3}|13[\s-]?\d{2}[\s-]?\d{2}/g;
+/**
+ * Elsewhere: only shapes that are clearly phone numbers (international +, (area) code,
+ * US 3-3-4, or trunk-0 national numbers), so years and prices don't get picked up.
+ */
+const INTL_PHONE_RE = /\+\d{1,3}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,4}){2,4}|\(\d{2,4}\)[\s.-]?\d{3,4}[\s.-]?\d{3,4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b|\b0\d{2,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b/g;
 
-export function normalisePhone(p: string) {
-  let d = p.replace(/[^\d+]/g, "");
-  if (d.startsWith("+61")) d = "0" + d.slice(3);
-  if (d.startsWith("61") && d.length === 11) d = "0" + d.slice(2);
-  return d;
+const SUFFIXES = [
+  "St", "Street", "Rd", "Road", "Ave", "Avenue", "Tce", "Terrace", "Pde", "Parade", "Hwy", "Highway", "Dr", "Drive", "Ct", "Court",
+  "Pl", "Place", "Lane", "Ln", "Way", "Cres", "Crescent", "Blvd", "Boulevard", "Sq", "Square", "Close", "Grove", "Row", "Walk",
+  "Parkway", "Pkwy", "Circle", "Cir", "Trail", "Esplanade", "Esp", "Mews", "Gardens", "Quay", "Wharf",
+];
+// Title case or ALL CAPS ("22 CAMDEN HIGH STREET"), but not lowercase, so prose like "3 people walk" doesn't match.
+const STREET = new RegExp(
+  String.raw`\d{1,5}[A-Za-z]?\s+[A-Z][A-Za-z'.-]+(?:\s+[A-Z][A-Za-z'.-]+){0,3}\s+(?:${[...SUFFIXES, ...SUFFIXES.map((s) => s.toUpperCase())].join("|")})\b`,
+);
+
+function addressPattern(countryCode: string) {
+  const pc = getCountry(countryCode).postcode;
+  return pc ? new RegExp(`${STREET.source}[^<\n]{0,60}?${pc.source}`, "g") : new RegExp(`${STREET.source}[^<\n]{0,40}`, "g");
+}
+
+export function normalisePhone(p: string, countryCode?: string | null) {
+  return normaliseFor(p, countryCode);
 }
 
 function flattenJsonLd(node: unknown, out: Record<string, unknown>[]) {
@@ -62,8 +69,9 @@ function typesOf(obj: Record<string, unknown>): string[] {
   return Array.isArray(t) ? t.map(String) : t ? [String(t)] : [];
 }
 
-export function extract(html: string, finalUrl: string, responseMs: number, renderer: "fetch" | "firecrawl"): Extracted {
+export function extract(html: string, finalUrl: string, responseMs: number, renderer: "fetch" | "firecrawl", countryCode = "AU"): Extracted {
   const $ = cheerio.load(html);
+  const country = getCountry(countryCode);
   const base = new URL(finalUrl);
 
   // JSON-LD
@@ -99,6 +107,8 @@ export function extract(html: string, finalUrl: string, responseMs: number, rend
   // Text
   const $body = $("body").clone();
   $body.find("script,style,noscript,svg,iframe").remove();
+  // Put a space after every element so neighbouring blocks don't glue together ("NW1 0JHinfo@...").
+  $body.find("*").after(" ");
   const text = $body.text().replace(/\s+/g, " ").trim();
   const words = text ? text.split(" ").length : 0;
 
@@ -124,7 +134,10 @@ export function extract(html: string, finalUrl: string, responseMs: number, rend
   const socialLinks = [...new Set(abs.filter((u) => SOCIAL_HOSTS.some((s) => u.includes(s))))];
 
   const telLinks = links.filter((h) => h.startsWith("tel:")).map((h) => h.slice(4));
-  const phones = [...new Set([...telLinks, ...(text.match(PHONE_RE) ?? [])].map(normalisePhone).filter((p) => p.length === 10 || (p.length === 6 && p.startsWith("13"))))];
+  const phoneMatches = text.match(country.code === "AU" ? AU_PHONE_RE : INTL_PHONE_RE) ?? [];
+  const phones = [
+    ...new Set([...telLinks, ...phoneMatches].map((p) => normalisePhone(p, country.code)).filter((p) => isPlausiblePhone(p, country.code))),
+  ];
   const emails = [
     ...new Set([
       ...links.filter((h) => h.startsWith("mailto:")).map((h) => h.slice(7).split("?")[0]),
@@ -132,8 +145,8 @@ export function extract(html: string, finalUrl: string, responseMs: number, rend
     ]),
   ].slice(0, 5);
 
-  const addresses = [...new Set(text.match(SA_ADDRESS_RE) ?? [])].slice(0, 5);
-  const postcodes = [...new Set([...text.matchAll(POSTCODE_RE)].map((m) => m[1]))];
+  const addresses = [...new Set((text.match(addressPattern(country.code)) ?? []).map((a) => a.trim()))].slice(0, 5);
+  const postcodes = country.postcode ? [...new Set([...text.matchAll(country.postcode)].map((m) => m[1] ?? m[0]))].slice(0, 5) : [];
 
   const images = $("img").length;
   const imagesWithoutAlt = $("img").filter((_, el) => !($(el).attr("alt") ?? "").trim()).length;
@@ -165,7 +178,8 @@ export function extract(html: string, finalUrl: string, responseMs: number, rend
     imagesWithoutAlt,
     images,
     hasReviewsMention: /reviews?|testimonials?|★|stars?\b|rated \d/i.test(text),
-    hasAbn: /\bABN\b[:\s]*\d{2}\s?\d{3}\s?\d{3}\s?\d{3}/i.test(text),
+    hasBizId: country.businessId ? country.businessId.pattern.test(text) : undefined,
+    bizIdLabel: country.businessId?.label,
     responseMs,
     https: base.protocol === "https:",
     usedRenderer: renderer,

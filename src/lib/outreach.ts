@@ -1,6 +1,7 @@
 import "server-only";
 import type { AuditRecord, Prospect } from "@/lib/types";
 import { getCategory } from "@/lib/categories";
+import { nearPlace, placeOf } from "@/lib/locale";
 import { engineLabels } from "@/lib/ai/engines";
 import { site } from "@/lib/site";
 
@@ -13,7 +14,7 @@ export type Draft = { subject: string; body: string };
 export function outreachDraft(p: Prospect, audit: AuditRecord, senderName = "[Your name]"): Draft {
   const r = audit.result;
   const cat = getCategory(p.category);
-  const suburb = p.suburb || r.input.suburb || "Adelaide";
+  const suburb = nearPlace(placeOf({ suburb: p.suburb || r.input.suburb, city: p.city || r.input.city, country: p.country || r.input.country }));
   const reportUrl = `${site.url}/report/${audit.id}`;
   const weakest = [...r.pillars].filter((x) => x.score !== null).sort((a, b) => (a.score ?? 0) - (b.score ?? 0))[0];
   const topFail = r.pillars.flatMap((x) => x.checks).find((c) => c.status === "fail" && c.weight >= 2);

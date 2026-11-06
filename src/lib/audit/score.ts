@@ -1,5 +1,6 @@
 import type { AuditInput, Check, CrawlerAccess, EngineAnswer, Extracted, Pillar, PillarKey } from "@/lib/types";
-import { getCategory } from "@/lib/categories";
+import { faqsFor, getCategory } from "@/lib/categories";
+import { getCountry, nearPlace, placeOf, shortPlace } from "@/lib/locale";
 import { isLocalType, normalisePhone } from "./extract";
 import { norm } from "@/lib/ai/visibility";
 
@@ -29,20 +30,28 @@ export function scoreSchema(x: Extracted, input: AuditInput): Pillar {
   const types = x.schemaTypes;
   const hasLocal = types.some(isLocalType);
   const has = (k: string) => !!biz && biz[k] != null && biz[k] !== "";
-  const specific = types.includes(cat.schemaType);
+  // Custom business types have no specific schema.org type, so any LocalBusiness subtype counts.
+  const generic = cat.schemaType === "LocalBusiness";
+  const specific = generic ? hasLocal : types.includes(cat.schemaType);
+  const blockName = generic ? "LocalBusiness" : `${cat.schemaType} (LocalBusiness)`;
   const checks: Check[] = [
     c("schema-any", "Any structured data", types.length > 0, 1,
       types.length ? `Found: ${types.slice(0, 6).join(", ")}` : "No JSON-LD or microdata on the homepage.",
       "Add JSON-LD structured data. Surfaced generates it for you in the Fix Pack."),
     c("schema-local", "LocalBusiness schema", hasLocal, 3,
       hasLocal ? "A LocalBusiness-type entity is present." : "Nothing tells engines this is a local business.",
-      `Add a ${cat.schemaType} (LocalBusiness) JSON-LD block with name, address, phone, hours and service area.`),
-    c("schema-specific", `Specific type (${cat.schemaType})`, specific ? true : hasLocal ? "warn" : false, 1,
-      specific ? `Uses ${cat.schemaType}.` : `Generic type used instead of ${cat.schemaType}.`,
-      `Change @type to "${cat.schemaType}" so engines match you to ${cat.plural.toLowerCase()} questions.`),
+      `Add a ${blockName} JSON-LD block with name, address, phone, hours and service area.`),
+    generic
+      ? c("schema-specific", "Business type in schema", hasLocal, 1,
+          hasLocal ? `Uses ${types.find(isLocalType)}.` : "No business type set in schema.",
+          "Use the most specific schema.org type that fits your business (see schema.org/LocalBusiness).")
+      : c("schema-specific", `Specific type (${cat.schemaType})`, specific ? true : hasLocal ? "warn" : false, 1,
+          specific ? `Uses ${cat.schemaType}.` : `Generic type used instead of ${cat.schemaType}.`,
+          `Change @type to "${cat.schemaType}" so engines match you to ${cat.plural.toLowerCase()} questions.`),
     c("schema-address", "Address in schema", has("address"), 2, has("address") ? "Address present." : "No postal address in schema.",
-      "Add a PostalAddress with streetAddress, addressLocality, addressRegion SA and postalCode."),
-    c("schema-phone", "Phone in schema", has("telephone"), 1, has("telephone") ? "Phone present." : "No telephone in schema.", "Add telephone in +61 format."),
+      "Add a PostalAddress with streetAddress, addressLocality, addressRegion, postalCode and addressCountry."),
+    c("schema-phone", "Phone in schema", has("telephone"), 1, has("telephone") ? "Phone present." : "No telephone in schema.",
+      "Add telephone in international format, with the country code."),
     c("schema-hours", "Opening hours", has("openingHoursSpecification") || has("openingHours"), 1,
       has("openingHoursSpecification") || has("openingHours") ? "Hours present." : "No opening hours in schema.",
       "Add openingHoursSpecification. 'Open now' questions rely on it."),
@@ -64,11 +73,14 @@ export function scoreSchema(x: Extracted, input: AuditInput): Pillar {
 
 export function scoreNap(x: Extracted, input: AuditInput): Pillar {
   const biz = x.schemaBusiness;
-  const schemaPhone = biz?.telephone ? normalisePhone(String(biz.telephone)) : null;
+  const place = placeOf(input);
+  const schemaPhone = biz?.telephone ? normalisePhone(String(biz.telephone), place.country) : null;
   const schemaName = biz?.name ? String(biz.name) : null;
   const nameOnPage = norm(x.textSample).includes(norm(input.businessName)) || norm(x.title).includes(norm(input.businessName));
   const phoneConsistent = !schemaPhone || x.phones.length === 0 || x.phones.includes(schemaPhone);
-  const suburbMentioned = !!input.suburb && norm(x.textSample + " " + x.title).includes(norm(input.suburb));
+  const where = nearPlace(place);
+  const suburbMentioned = !!where && norm(x.textSample + " " + x.title).includes(norm(where));
+  const areas = getCountry(place.country).areaWord === "suburb" ? "suburbs" : "areas";
   const checks: Check[] = [
     c("nap-name", "Business name on page", nameOnPage, 2,
       nameOnPage ? `"${input.businessName}" appears on the homepage.` : `"${input.businessName}" doesn't appear as written on the homepage.`,
@@ -83,11 +95,11 @@ export function scoreNap(x: Extracted, input: AuditInput): Pillar {
       x.phones.length > 2 ? `${x.phones.length} different numbers on one page confuse engines.` : phoneConsistent ? "Phone numbers are consistent." : "Schema phone differs from the page.",
       "Pick one primary number and use it everywhere, including directories."),
     c("nap-address", "Street address visible", x.addresses.length > 0 ? true : x.postcodes.length ? "warn" : false, 2,
-      x.addresses.length ? x.addresses[0] : x.postcodes.length ? `Postcode ${x.postcodes[0]} found, but no full street address.` : "No South Australian address found.",
+      x.addresses.length ? x.addresses[0] : x.postcodes.length ? `Postcode ${x.postcodes[0]} found, but no full street address.` : "No street address found.",
       "Show your full street address (or 'servicing [suburbs]' if you're mobile) in the footer."),
-    c("nap-suburb", `Mentions ${input.suburb || "your suburb"}`, suburbMentioned, 1,
-      suburbMentioned ? `Homepage mentions ${input.suburb}.` : `Homepage never mentions ${input.suburb}.`,
-      `Say where you work in plain words: "${getCategory(input.category).label} in ${input.suburb} and surrounding suburbs".`),
+    c("nap-suburb", `Mentions ${where || "your area"}`, suburbMentioned, 1,
+      suburbMentioned ? `Homepage mentions ${where}.` : `Homepage never mentions ${where}.`,
+      `Say where you work in plain words: "${getCategory(input.category).label} in ${where} and surrounding ${areas}".`),
     c("nap-email", "Contact email", x.emails.length > 0 ? true : "warn", 0.5, x.emails.length ? x.emails[0] : "No email address found.", "Add a contact email."),
   ];
   return { key: "nap", ...pillarMeta.nap, score: score(checks), checks };
@@ -95,25 +107,28 @@ export function scoreNap(x: Extracted, input: AuditInput): Pillar {
 
 export function scoreContent(x: Extracted, input: AuditInput): Pillar {
   const cat = getCategory(input.category);
+  const place = placeOf(input);
+  const where = nearPlace(place);
+  const inPlace = (s: string) => [place.area, place.city].some((p) => !!p && norm(s).includes(norm(p)));
   const h1 = x.h1[0] ?? "";
-  const h1Local = !!h1 && (norm(h1).includes(norm(cat.label).split(" ")[0]) || norm(h1).includes(norm(input.suburb)) || norm(h1).includes("adelaide"));
-  const titleLocal = /adelaide|\bsa\b/i.test(x.title) || (input.suburb && norm(x.title).includes(norm(input.suburb)));
-  const servicePages = x.internalLinks.filter((u) => /service|plumb|electric|roof|repair|install|treat|menu|book|price|cost|faq/i.test(u)).length;
+  const h1Local = !!h1 && (norm(h1).includes(norm(cat.label).split(" ")[0]) || inPlace(h1));
+  const titleLocal = inPlace(x.title);
+  const servicePages = x.internalLinks.filter((u) => /service|repair|install|treat|menu|book|price|cost|faq|class|lesson|product|shop|rates/i.test(u)).length;
   const checks: Check[] = [
     c("content-h1", "One clear H1", x.h1.length === 1 ? true : x.h1.length > 1 ? "warn" : false, 1,
       x.h1.length ? `H1: "${h1.slice(0, 90)}"${x.h1.length > 1 ? ` (+${x.h1.length - 1} more)` : ""}` : "No H1 heading.",
-      `Use one H1 that says what you do and where, e.g. "${cat.label} in ${input.suburb || "Adelaide"}".`),
+      `Use one H1 that says what you do and where, e.g. "${cat.label} in ${where}".`),
     c("content-h1-local", "H1 states service + place", h1Local, 2,
       h1Local ? "The main heading names your service or location." : "The main heading doesn't say what you do or where.",
       `Rewrite the H1 to answer "what and where" in one line.`),
     c("content-title", "Title mentions location", !!titleLocal, 1, x.title ? `Title: "${x.title.slice(0, 80)}"` : "No title tag.",
-      `Title format: "${cat.label} ${input.suburb || "Adelaide"} | ${input.businessName}".`),
+      `Title format: "${cat.label} in ${shortPlace(place)} | ${input.businessName}".`),
     c("content-meta", "Meta description", x.metaDescription.length >= 70 ? true : x.metaDescription ? "warn" : false, 1,
       x.metaDescription ? `${x.metaDescription.length} characters.` : "Missing.",
       "Write a 120-155 character description that answers who you are, what you do and where."),
     c("content-faq", "FAQ section", x.hasFaq, 2,
       x.hasFaq ? "FAQ content found." : "No FAQ section. AI engines lift answers straight from FAQs.",
-      `Add 5-8 FAQs locals actually ask, e.g. "${cat.faqs[0]?.replace("{suburb}", input.suburb || "Adelaide").replace("{city}", "Adelaide")}"`),
+      `Add 5-8 FAQs locals actually ask, e.g. "${faqsFor(cat, place)[0] ?? "How much does it cost?"}"`),
     c("content-questions", "Question-style headings", x.questionHeadings.length >= 3 ? true : x.questionHeadings.length ? "warn" : false, 1,
       `${x.questionHeadings.length} heading(s) phrased as questions.`,
       "Phrase some H2s as the questions customers ask, and answer in the first sentence below."),
@@ -127,7 +142,9 @@ export function scoreContent(x: Extracted, input: AuditInput): Pillar {
   return { key: "content", ...pillarMeta.content, score: score(checks), checks };
 }
 
-export function scoreEntity(x: Extracted): Pillar {
+export function scoreEntity(x: Extracted, input: AuditInput): Pillar {
+  const country = getCountry(placeOf(input).country);
+  const hasId = x.hasBizId ?? x.hasAbn ?? false;
   const gbp = [...x.socialLinks, ...x.sameAs].some((u) => /google\.com\/maps|maps\.app\.goo\.gl|g\.page|business\.google/i.test(u));
   const socials = new Set([...x.socialLinks, ...x.sameAs].map((u) => {
     try {
@@ -142,15 +159,21 @@ export function scoreEntity(x: Extracted): Pillar {
       "Link your Google Business Profile from the site and from sameAs schema."),
     c("entity-social", "Social and directory profiles", socials.size >= 3 ? true : socials.size ? "warn" : false, 2,
       socials.size ? `${socials.size} profile(s): ${[...socials].slice(0, 5).join(", ")}` : "No social or directory links.",
-      "Link 3+ active profiles (Facebook, Instagram, LinkedIn, trade directories)."),
+      "Link 3+ active profiles (Facebook, Instagram, LinkedIn, industry directories)."),
     c("entity-about", "About page", about, 1, about ? "About/team page linked." : "No About page linked from the homepage.",
       "Add an About page with the owner's name, years operating and licences. Engines weigh real people."),
     c("entity-reviews", "Reviews or testimonials shown", x.hasReviewsMention, 2, x.hasReviewsMention ? "Reviews or testimonials mentioned." : "No reviews or testimonials on the homepage.",
-      "Show recent Google reviews on the homepage, with the reviewer's first name and suburb."),
-    c("entity-abn", "ABN displayed", x.hasAbn ? true : "warn", 1, x.hasAbn ? "ABN shown." : "No ABN found.", "Show your ABN in the footer. It's a strong legitimacy signal in Australia."),
+      "Show recent Google reviews on the homepage, with the reviewer's first name and area."),
     c("entity-org", "Organisation identity in schema", !!x.schemaBusiness, 1, x.schemaBusiness ? "Business entity defined in schema." : "No business entity in schema.",
       "Define your business once in schema with logo, founder and founding date."),
   ];
+  // Only for countries with one common business ID (the US has no single equivalent, for example).
+  const id = country.businessId;
+  if (id) {
+    const label = id.label.charAt(0).toUpperCase() + id.label.slice(1);
+    checks.splice(4, 0, c(country.code === "AU" ? "entity-abn" : "entity-bizid", `${label} displayed`, hasId ? true : "warn", 1,
+      hasId ? `${label} shown.` : `No ${id.label} found.`, id.tip));
+  }
   return { key: "entity", ...pillarMeta.entity, score: score(checks), checks };
 }
 
@@ -160,6 +183,11 @@ export function scoreCrawl(x: Extracted, cr: CrawlerAccess): Pillar {
     c("crawl-ai-bots", "AI crawlers allowed", cr.blocked.length === 0 ? true : cr.blocked.length <= 2 ? "warn" : false, 3,
       cr.blocked.length ? `Blocked: ${cr.blocked.join(", ")}` : "No AI crawlers are blocked in robots.txt.",
       "Remove Disallow rules for GPTBot, OAI-SearchBot, PerplexityBot, ClaudeBot and Google-Extended."),
+    c("crawl-firewall", "Firewall lets crawlers in", !x.botBlocked, 3,
+      x.botBlocked
+        ? "Your server refused our crawler but served a normal browser. Firewalls that do this usually turn away ChatGPT, Perplexity and Claude's crawlers too."
+        : "Our crawler was served normally.",
+      "In your firewall or security plugin (Cloudflare bot settings, Wordfence, your host's WAF), allow verified AI crawlers: GPTBot, OAI-SearchBot, PerplexityBot, ClaudeBot."),
     c("crawl-noindex", "Page is indexable", !noindex, 3, noindex ? "The homepage has a noindex robots meta tag." : "No noindex tag.", "Remove the noindex meta tag."),
     c("crawl-llms", "llms.txt file", cr.llmsTxt ? true : "warn", 1, cr.llmsTxt ? "llms.txt found." : "No /llms.txt.",
       "Publish an llms.txt summarising your business, services and key pages. Surfaced writes it for you."),

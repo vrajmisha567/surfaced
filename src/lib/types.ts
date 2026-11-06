@@ -65,10 +65,15 @@ export type Extracted = {
   imagesWithoutAlt: number;
   images: number;
   hasReviewsMention: boolean;
-  hasAbn: boolean;
+  /** Business registration ID shown (ABN in Australia, company number in the UK...). Old audits only have hasAbn. */
+  hasBizId?: boolean;
+  bizIdLabel?: string;
+  hasAbn?: boolean;
   responseMs: number;
   https: boolean;
   usedRenderer: "fetch" | "firecrawl";
+  /** Firewall refused our crawler but let a browser in. Missing on older audits. */
+  botBlocked?: boolean;
   textSample: string;
 };
 
@@ -83,7 +88,11 @@ export type CrawlerAccess = {
 export type AuditInput = {
   url: string;
   businessName: string;
+  /** Suburb, neighbourhood or area. */
   suburb: string;
+  city?: string;
+  /** ISO 3166 code, e.g. AU, US, GB. Missing = AU. */
+  country?: string;
   category: string;
   email?: string;
   competitors?: string[];
@@ -115,6 +124,8 @@ export type AuditRecord = {
   url: string;
   business_name: string;
   suburb: string;
+  city: string;
+  country: string;
   category: string;
   email: string | null;
   overall_score: number;
@@ -143,6 +154,8 @@ export type Prospect = {
   email: string | null;
   address: string | null;
   suburb: string | null;
+  city: string | null;
+  country: string;
   category: string;
   place_id: string | null;
   rating: number | null;
@@ -168,6 +181,8 @@ export type Client = {
   name: string;
   website: string;
   suburb: string;
+  city: string;
+  country: string;
   category: string;
   contact_name: string | null;
   contact_email: string | null;

@@ -14,7 +14,7 @@ export async function seedDemoClient() {
   if (existing) return existing;
 
   const competitors = ["Parade Plumbing", "Eastside Plumbers", "Kent Town Gas & Water"];
-  const prompts = promptsFor("plumber", "Norwood", 5);
+  const prompts = promptsFor("plumber", { area: "Norwood", city: "Adelaide", country: "AU" }, 5);
   const fixes: FixItem[] = [
     ["schema-local", "Add a Plumber (LocalBusiness) JSON-LD block with name, address, phone, hours and service area.", "schema", true],
     ["crawl-ai-bots", "Remove Disallow rules for GPTBot, OAI-SearchBot, PerplexityBot, ClaudeBot and Google-Extended.", "crawl", true],
@@ -31,6 +31,8 @@ export async function seedDemoClient() {
     name,
     website: "https://example.com",
     suburb: "Norwood",
+    city: "Adelaide",
+    country: "AU",
     category: "plumber",
     contact_name: null,
     contact_email: null,

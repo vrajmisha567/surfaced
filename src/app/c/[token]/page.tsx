@@ -7,6 +7,7 @@ import { site } from "@/lib/site";
 import { Card, Label, Logo } from "@/components/ui";
 import { ClientDashboard } from "@/components/client-dashboard";
 import { PrintButton } from "@/components/print-button";
+import { placeLabel } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your dashboard", robots: { index: false, follow: false } };
@@ -34,7 +35,7 @@ export default async function ClientPortal({ params }: PageProps<"/c/[token]">) 
       </header>
       <main className="mx-auto max-w-6xl space-y-8 px-5 py-8">
         <div>
-          <Label>{getCategory(c.category).label} · {c.suburb}, SA</Label>
+          <Label>{getCategory(c.category).label} · {placeLabel(c)}</Label>
           <h1 className="mt-1 text-[28px] font-semibold tracking-tight">{c.name}</h1>
           <p className="mt-1 text-sm text-muted">How often AI assistants name you when locals ask, updated weekly.</p>
         </div>

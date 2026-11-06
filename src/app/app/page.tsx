@@ -4,6 +4,7 @@ import { integrations } from "@/lib/env";
 import { prospectStatuses } from "@/lib/types";
 import { Card, Label, StatTile, LinkButton } from "@/components/ui";
 import { ArrowRight } from "lucide-react";
+import { placeLabel } from "@/lib/locale";
 
 export default async function Overview() {
   const [prospects, clients, audits] = await Promise.all([db.prospects.list(), db.clients.list(), db.audits.list(200)]);
@@ -60,7 +61,7 @@ export default async function Overview() {
                 {audits.slice(0, 7).map((a) => (
                   <tr key={a.id}>
                     <td className="py-2.5"><Link href={`/report/${a.id}`} className="hover:underline">{a.business_name}</Link></td>
-                    <td className="py-2.5 text-muted">{a.suburb}</td>
+                    <td className="py-2.5 text-muted">{placeLabel(a)}</td>
                     <td className="label py-2.5">{a.prospect_id ? "Prospect" : a.client_id ? "Client" : "Inbound"}</td>
                     <td className="tabular py-2.5 text-right font-medium">{a.overall_score}</td>
                   </tr>

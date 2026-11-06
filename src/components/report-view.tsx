@@ -2,6 +2,7 @@ import { Check, Minus, X } from "lucide-react";
 import type { AuditResult, EngineId } from "@/lib/types";
 import { getCategory } from "@/lib/categories";
 import { Card, Label, ScoreBar, ScoreRing, StatusPill, scoreWord } from "./ui";
+import { longPlace, placeOf, shortPlace } from "@/lib/locale";
 
 const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude", ollama: "Open model" };
 
@@ -25,7 +26,7 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
 
   const verdict =
     ran && hits.length === 0
-      ? `${r.input.businessName} wasn't named in any of ${ok.length} AI answers to questions locals ask about ${cat.plural.toLowerCase()} in ${r.input.suburb}.`
+      ? `${r.input.businessName} wasn't named in any of ${ok.length} AI answers to questions locals ask about ${cat.plural.toLowerCase()} in ${shortPlace(placeOf(r.input))}.`
       : ran
         ? `${r.input.businessName} was named in ${hits.length} of ${ok.length} AI answers. ${r.ai.topRivals[0] ? `${r.ai.topRivals[0].name} was named ${r.ai.topRivals[0].count} times.` : ""}`
         : `Your site scores ${r.overall}/100 on the factors AI engines use to decide which ${cat.plural.toLowerCase()} to recommend.`;
@@ -42,7 +43,7 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
             </Label>
             <h1 className="mt-2 text-[30px] font-semibold leading-tight tracking-tight">{r.input.businessName}</h1>
             <div className="mt-1 text-sm text-muted">
-              {host} · {cat.label} · {r.input.suburb}, SA
+              {host} · {cat.label} · {longPlace(placeOf(r.input))}
             </div>
             <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-2">{verdict}</p>
             {r.fetchError && <p className="mt-3 rounded-md bg-bad-soft px-3 py-2 text-sm text-bad">{r.fetchError}</p>}

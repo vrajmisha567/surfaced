@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { enabledEngines } from "@/lib/ai/engines";
 import { runMatrix } from "@/lib/ai/visibility";
 import { promptsFor } from "@/lib/categories";
+import { placeOf } from "@/lib/locale";
 
 /** ISO week label, e.g. 2026-W45. */
 export function isoWeek(d = new Date()) {
@@ -16,14 +17,14 @@ export function isoWeek(d = new Date()) {
 }
 
 export function clientPrompts(c: Client) {
-  return c.prompts.length ? c.prompts : promptsFor(c.category, c.suburb, 5);
+  return c.prompts.length ? c.prompts : promptsFor(c.category, placeOf(c), 5);
 }
 
 export async function trackClient(c: Client) {
   const engines = enabledEngines();
   if (!engines.length) throw new Error("No AI engine keys configured");
   const week = isoWeek();
-  const answers = await runMatrix(engines, clientPrompts(c), { name: c.name, website: c.website }, c.competitors);
+  const answers = await runMatrix(engines, clientPrompts(c), { name: c.name, website: c.website }, c.competitors, placeOf(c));
   await db.runs.createMany(
     answers.map((a) => ({
       client_id: c.id,

@@ -5,16 +5,30 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { runAudit } from "@/lib/audit/run";
 import { db } from "@/lib/db";
-import { categories } from "@/lib/categories";
+import { categoryFromForm } from "@/lib/categories";
+import { isKnownCountry } from "@/lib/locale";
 import { sendAuditReport } from "@/lib/email";
 
-const schema = z.object({
-  url: z.string().trim().min(4, "Enter your website").max(300),
-  businessName: z.string().trim().min(2, "Enter your business name").max(120),
-  suburb: z.string().trim().min(2, "Enter your suburb").max(60),
-  category: z.enum(categories.map((c) => c.id) as [string, ...string[]]),
-  email: z.union([z.literal(""), z.email("That email doesn't look right")]).optional(),
-});
+const schema = z
+  .object({
+    url: z.string().trim().min(4, "Enter your website").max(300),
+    businessName: z.string().trim().min(2, "Enter your business name").max(120),
+    suburb: z.string().trim().max(60).optional().default(""),
+    city: z.string().trim().min(2, "Enter your city or town").max(60),
+    country: z.string().trim().toUpperCase().refine(isKnownCountry, "Pick a country"),
+    category: z.string().trim(),
+    customType: z.string().trim().max(50).optional().default(""),
+    email: z.union([z.literal(""), z.email("That email doesn't look right")]).optional(),
+  })
+  .transform((d, ctx) => {
+    // "Other" means the visitor typed their own business type.
+    const category = categoryFromForm(d.category, d.customType);
+    if (!category) {
+      ctx.addIssue({ code: "custom", message: d.category === "custom" ? "Type your kind of business, e.g. wedding photographer" : "Pick a business type" });
+      return z.NEVER;
+    }
+    return { url: d.url, businessName: d.businessName, suburb: d.suburb, city: d.city, country: d.country, category, email: d.email };
+  });
 
 export type AuditFormState = { error?: string; fields?: Record<string, string> };
 
@@ -44,6 +58,8 @@ export async function runAuditAction(_prev: AuditFormState, form: FormData): Pro
       url: result.input.url,
       business_name: result.input.businessName,
       suburb: result.input.suburb,
+      city: result.input.city ?? "",
+      country: result.input.country ?? "AU",
       category: result.input.category,
       email: parsed.data.email || null,
       overall_score: result.overall,

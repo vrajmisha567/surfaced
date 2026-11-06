@@ -9,6 +9,7 @@ import { Card, Label, ScoreRing, inputCls, Field } from "@/components/ui";
 import { ActionButton, SubmitButton } from "@/components/action-ui";
 import { CopyButton } from "@/components/print-button";
 import { auditProspect, convertProspect, deleteProspect, saveProspectNotes, setProspectStatus } from "../../actions";
+import { placeLabel } from "@/lib/locale";
 
 export default async function ProspectPage({ params }: PageProps<"/app/prospects/[id]">) {
   const { id } = await params;
@@ -23,7 +24,7 @@ export default async function ProspectPage({ params }: PageProps<"/app/prospects
       <Link href="/app/prospects" className="text-sm text-muted hover:text-ink">← Prospects</Link>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Label>{cat.label} · {p.suburb ?? "Adelaide"}</Label>
+          <Label>{cat.label} · {placeLabel(p)}</Label>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{p.name}</h1>
           <div className="mt-1 flex flex-wrap gap-x-4 text-sm text-muted">
             {p.website && <a href={p.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-ink">{p.website.replace(/^https?:\/\//, "")} <ExternalLink size={12} /></a>}

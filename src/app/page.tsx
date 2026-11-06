@@ -4,6 +4,7 @@ import { AuditForm } from "@/components/audit-form";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Card, Label, LinkButton, ScoreBar, ScoreRing } from "@/components/ui";
 import { categories, fillTemplate } from "@/lib/categories";
+import { groupLabels } from "@/lib/locale";
 import { pillarMeta } from "@/lib/audit/score";
 import { plans, site } from "@/lib/site";
 
@@ -228,19 +229,22 @@ export default function Home() {
                 <Card key={c.id} className="p-5">
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{c.plural}</div>
-                    <div className="label">{c.group}</div>
+                    <div className="label">{groupLabels[c.group]}</div>
                   </div>
                   <ul className="mt-4 space-y-2">
                     {c.prompts.slice(0, 3).map((p) => (
                       <li key={p} className="rounded-md border border-line bg-paper px-3 py-2 font-mono text-[12px] leading-snug text-ink-2">
-                        “{fillTemplate(p, ["Norwood", "Unley", "Glenelg", "Prospect", "Mawson Lakes", "Burnside"][c.prompts.indexOf(p) % 6])}”
+                        “{fillTemplate(p, { area: ["Norwood", "Unley", "Glenelg", "Prospect", "Mawson Lakes", "Burnside"][c.prompts.indexOf(p) % 6], city: "Adelaide", country: "AU" })}”
                       </li>
                     ))}
                   </ul>
                 </Card>
               ))}
             </div>
-            <p className="mt-6 text-sm text-muted">Also: roofers, air conditioning, builders, landscapers, mechanics, beauty clinics, accountants.</p>
+            <p className="mt-6 text-sm text-muted">
+              Plus {categories.length - 6} more built-in business types, from roofers and vets to lawyers and wedding venues. Not listed? Pick
+              &ldquo;Other&rdquo; in the audit form and type yours. Audits work for businesses in any city, in Australia or overseas.
+            </p>
           </div>
         </section>
 

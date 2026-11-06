@@ -1,6 +1,7 @@
 import "server-only";
 import type { EngineAnswer, EngineId } from "@/lib/types";
 import { suburbs } from "@/lib/categories";
+import type { Place } from "@/lib/locale";
 import { askEngine } from "./engines";
 
 const STOP = new Set(["pty", "ltd", "limited", "the", "co", "company", "group", "services", "service", "sa", "adelaide", "australia", "and", "of"]);
@@ -30,6 +31,20 @@ function domainRoot(url: string | undefined) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Close variants of the same name: "Camden High Dental Practice" for "Camden High Street Dental Practice".
+ * Word overlap (Jaccard) of at least 0.7 with 3+ shared words, so short names ("Plumbing Doctor" vs
+ * "Doctor Plumbing") never fuzzy-match: a false match would overstate a client's visibility.
+ */
+export function similarName(a: string, b: string) {
+  const words = (s: string) => new Set(norm(s).split(" ").filter((w) => w && !STOP.has(w)));
+  const A = words(a);
+  const B = words(b);
+  const shared = [...A].filter((w) => B.has(w)).length;
+  const union = new Set([...A, ...B]).size;
+  return shared >= 3 && shared / union >= 0.7;
 }
 
 /** Does this answer mention the business, by name or by linking its domain? */
@@ -65,7 +80,9 @@ const PLACES = new Set(
     // Regulators, platforms and review sites that answers cite but aren't competitors.
     "Consumer and Business Services", "CBS", "ACCC", "Google", "Google Maps", "Google Reviews", "Google Business Profile",
     "ProductReview", "ProductReview.com.au", "Word of Mouth", "WOMO", "hipages", "Yelp", "Oneflare", "Airtasker",
-    "Facebook", "Master Plumbers Association", "Master Builders SA", "Master Electricians Australia", "Healthdirect", "AHPRA",
+    "Facebook", "Instagram", "Reddit", "Trustpilot", "TripAdvisor", "Yelp", "Better Business Bureau", "BBB", "Angi", "Angie's List",
+    "Thumbtack", "HomeAdvisor", "Houzz", "Nextdoor", "Checkatrade", "TrustATrader", "Yell", "Justdial", "Practo", "Zomato",
+    "Zocdoc", "Healthgrades", "OpenTable", "Treatwell", "Fresha", "Booksy", "NHS", "Master Plumbers Association", "Master Builders SA", "Master Electricians Australia", "Healthdirect", "AHPRA",
   ].map((p) => norm(p)),
 );
 const SMALL_WORDS = new Set(["and", "&", "of", "the", "for", "in", "at", "by"]);
@@ -107,13 +124,16 @@ export async function runPrompt(
   prompt: string,
   business: { name: string; website?: string },
   competitors: string[] = [],
+  place?: Place,
 ): Promise<EngineAnswer> {
   const t0 = Date.now();
   try {
-    const { answer, citations, grounded } = await askEngine(engine, prompt);
-    const mentioned = mentions(answer, citations, business.name, business.website);
-    const named = extractNames(answer);
-    const isUs = (n: string) => mentions(n, [], business.name);
+    const { answer, citations, grounded } = await askEngine(engine, prompt, place);
+    // The business's own suburb and city often appear as headings; they aren't rivals.
+    const own = new Set([place?.area, place?.city].filter(Boolean).map((p) => norm(p!)));
+    const named = extractNames(answer).filter((n) => !own.has(norm(n)));
+    const isUs = (n: string) => mentions(n, [], business.name) || similarName(n, business.name);
+    const mentioned = mentions(answer, citations, business.name, business.website) || named.some(isUs);
     const others = named.filter((n) => !isUs(n));
 
     let position: number | null = null;
@@ -161,6 +181,7 @@ export async function runMatrix(
   prompts: string[],
   business: { name: string; website?: string },
   competitors: string[] = [],
+  place?: Place,
   concurrency = 4,
 ): Promise<EngineAnswer[]> {
   const jobs = prompts.flatMap((p) => engines.map((e) => ({ e, p })));
@@ -170,7 +191,7 @@ export async function runMatrix(
     Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
       while (i < jobs.length) {
         const idx = i++;
-        out[idx] = await runPrompt(jobs[idx].e, jobs[idx].p, business, competitors);
+        out[idx] = await runPrompt(jobs[idx].e, jobs[idx].p, business, competitors, place);
       }
     }),
   );
