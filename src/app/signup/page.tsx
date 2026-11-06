@@ -33,7 +33,15 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
       <OrDivider />
       <SignupForm next={next} />
       <p className="mt-4 text-center text-xs leading-relaxed text-muted">
-        By creating an account you agree to be contacted about your audits. We never share your details.
+        By creating an account you agree to our{" "}
+        <Link href="/terms" className="underline underline-offset-2 hover:text-ink">
+          terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">
+          privacy policy
+        </Link>
+        .
       </p>
     </AuthShell>
   );

@@ -51,7 +51,11 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-line">
         <div className="label mx-auto flex max-w-6xl justify-between px-5 py-4">
-          <span>© {new Date().getFullYear()} {site.name}</span>
+          <span className="flex gap-4">
+            <span>© {new Date().getFullYear()} {site.name}</span>
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="hover:text-ink">Terms</Link>
+          </span>
           <span>No one can guarantee AI rankings. We show you the evidence every week.</span>
         </div>
       </div>
