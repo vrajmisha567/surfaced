@@ -232,7 +232,7 @@ export default async function Home() {
                 </Card>
               </Reveal>
               <Reveal delay={0.2}>
-                <Card className="relative h-full border-ink bg-night p-5 text-white shadow-[0_30px_70px_-30px_rgba(11,18,32,.6)]">
+                <Card className="relative h-full border-night bg-night p-5 text-white shadow-[0_30px_70px_-30px_rgba(11,18,32,.6)]">
                   <BorderBeam size={110} duration={8} delay={3} from="#13855f" to="#a7f0d2" />
                   <div className="label !text-faint">Now · AI answer</div>
                   <p className="mt-4 text-sm leading-relaxed text-[#c9d1de]">
@@ -391,7 +391,7 @@ export default async function Home() {
               <Reveal key={p.id} delay={k * 0.1}>
                 <Card
                   className={`relative flex h-full flex-col p-7 transition-transform duration-300 hover:-translate-y-1 ${
-                    p.featured ? "border-ink bg-night text-white shadow-[0_40px_80px_-36px_rgba(11,18,32,.7)]" : "hover:shadow-[0_24px_50px_-30px_rgba(16,24,40,.35)]"
+                    p.featured ? "border-night bg-night text-white shadow-[0_40px_80px_-36px_rgba(11,18,32,.7)] dark:border-accent/50 dark:bg-night-2" : "hover:shadow-[0_24px_50px_-30px_rgba(16,24,40,.35)]"
                   }`}
                 >
                   {p.featured && (

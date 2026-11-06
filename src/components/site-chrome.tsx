@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { UserRound } from "lucide-react";
+import { ThemeToggle, iconBtn } from "./theme-toggle";
 import { Logo, LinkButton } from "./ui";
 import { site } from "@/lib/site";
 
@@ -14,9 +16,12 @@ export function SiteHeader() {
           <Link href="/#stats" className="hover:text-ink">Stats</Link>
           <Link href="/#faq" className="hover:text-ink">FAQ</Link>
         </nav>
-        <div className="flex items-center gap-2">
-          <Link href="/login" className="hidden px-2 text-sm text-ink-2 hover:text-ink sm:block">Log in</Link>
-          <LinkButton href="/#audit" size="sm" className="fx-sheen">Free audit</LinkButton>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Link href="/login" aria-label="Log in" title="Log in" className={iconBtn}>
+            <UserRound size={18} aria-hidden />
+          </Link>
+          <LinkButton href="/#audit" size="sm" className="fx-sheen ml-1">Free audit</LinkButton>
         </div>
       </div>
     </header>

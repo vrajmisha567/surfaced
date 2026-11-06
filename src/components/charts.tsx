@@ -65,7 +65,7 @@ export function TrendChart({ weeks, series, height = 240, format = (v: number) =
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block" role="img" aria-label="Weekly mention rate" onMouseLeave={() => setHover(null)}>
         {[0, 0.25, 0.5, 0.75, 1].map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#e2ddd2" strokeWidth={1} />
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className="stroke-line" strokeWidth={1} />
             <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="fill-muted" fontSize={11}>
               {Math.round(t * 100)}%
             </text>
@@ -78,7 +78,7 @@ export function TrendChart({ weeks, series, height = 240, format = (v: number) =
             </text>
           ) : null,
         )}
-        {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + ih} stroke="#98a2b3" strokeWidth={1} strokeDasharray="3 3" />}
+        {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + ih} className="stroke-faint" strokeWidth={1} strokeDasharray="3 3" />}
         {shown.map((s, si) => {
           const pts = s.values.map((v, i) => (v === null ? null : [x(i), y(v)] as const));
           const d = pts.reduce((acc, p, i) => (p ? acc + `${acc && pts[i - 1] ? "L" : "M"}${p[0]},${p[1]}` : acc), "");
@@ -88,7 +88,7 @@ export function TrendChart({ weeks, series, height = 240, format = (v: number) =
               <path d={d} fill="none" stroke={SERIES[si]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
               {pts.map((p, i) =>
                 p && (n <= 12 || i === hover || i === lastIdx) ? (
-                  <circle key={i} cx={p[0]} cy={p[1]} r={i === hover ? 5 : 4} fill={SERIES[si]} stroke="#fffefb" strokeWidth={2} />
+                  <circle key={i} cx={p[0]} cy={p[1]} r={i === hover ? 5 : 4} fill={SERIES[si]} className="stroke-card" strokeWidth={2} />
                 ) : null,
               )}
               {lastIdx >= 0 && (

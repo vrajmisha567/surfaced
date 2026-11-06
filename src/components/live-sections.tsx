@@ -54,7 +54,7 @@ function Panel({ title, sub, children, className }: { title: string; sub?: strin
 
 function Tile({ label, value, sub, dark }: { label: string; value: React.ReactNode; sub: React.ReactNode; dark?: boolean }) {
   return (
-    <Card className={`p-5 ${dark ? "border-ink bg-night text-white" : ""}`}>
+    <Card className={`p-5 ${dark ? "border-night bg-night text-white" : ""}`}>
       <div className={`label ${dark ? "!text-faint" : ""}`}>{label}</div>
       <div className="tabular mt-3 text-[34px] font-semibold leading-none tracking-tight">{value}</div>
       <div className={`mt-2 text-xs ${dark ? "text-[#a9b4c6]" : "text-muted"}`}>{sub}</div>
@@ -204,7 +204,7 @@ export function StatsSection({ s }: { s: AuditStats | null }) {
                     {s.countryRows.map((c, i) => (
                       <li key={c.code} className="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2.5 text-sm">
                         <span className="w-6 text-muted">{medals[i] ?? `#${i + 1}`}</span>
-                        <span className="rounded bg-ink px-1.5 py-0.5 font-mono text-[10px] text-white">{c.code}</span>
+                        <span className="rounded bg-inverse px-1.5 py-0.5 font-mono text-[10px] text-on-inverse">{c.code}</span>
                         <span className="flex-1 truncate font-medium">{c.name}</span>
                         <span className="tabular text-right text-xs text-muted">
                           {c.audits} {c.audits === 1 ? "audit" : "audits"} · median {c.median}

@@ -35,7 +35,7 @@ export default async function ProspectPage({ params }: PageProps<"/app/prospects
         <div className="flex flex-wrap gap-1.5">
           {prospectStatuses.map((s) => (
             <form key={s} action={setProspectStatus.bind(null, p.id, s)}>
-              <button className={`rounded-md px-2.5 py-1 text-xs capitalize ${p.status === s ? "bg-ink text-white" : "border border-line bg-card text-ink-2 hover:bg-paper-2"}`}>{s}</button>
+              <button className={`rounded-md px-2.5 py-1 text-xs capitalize ${p.status === s ? "bg-inverse text-on-inverse" : "border border-line bg-card text-ink-2 hover:bg-paper-2"}`}>{s}</button>
             </form>
           ))}
         </div>

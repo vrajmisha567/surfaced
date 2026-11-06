@@ -101,7 +101,7 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/app/pr
 
 function FilterLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
-    <Link href={href} className={`rounded-md px-2.5 py-1 capitalize ${active ? "bg-ink text-white" : "bg-card text-ink-2 border border-line hover:bg-paper-2"}`}>
+    <Link href={href} className={`rounded-md px-2.5 py-1 capitalize ${active ? "bg-inverse text-on-inverse" : "bg-card text-ink-2 border border-line hover:bg-paper-2"}`}>
       {children}
     </Link>
   );

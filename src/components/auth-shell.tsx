@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Reveal } from "./fx";
+import { ThemeToggle } from "./theme-toggle";
 import { Logo, Mark } from "./ui";
 
 /**
@@ -26,9 +27,12 @@ export function AuthShell({
         <div aria-hidden className="grid-paper absolute inset-0 [mask-image:radial-gradient(ellipse_70%_60%_at_30%_0%,#000_20%,transparent_80%)]" />
         <div className="relative flex items-center justify-between">
           <Logo />
-          <Link href="/" className="text-sm text-muted hover:text-ink">
-            ← Back to site
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link href="/" className="text-sm text-muted hover:text-ink">
+              ← Back to site
+            </Link>
+          </div>
         </div>
         <div className="relative mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center py-12">
           <Reveal>

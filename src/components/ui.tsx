@@ -13,8 +13,8 @@ export const WAVE_BOTTOM = "M9 27A10 10 0 0 0 29 27";
 export function Mark({ size = 24, dark, className }: { size?: number; dark?: boolean; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 1 48 48" aria-hidden className={className}>
-      <path d={WAVE_TOP} fill="none" stroke={dark ? "#5fd3a5" : "#13855f"} strokeWidth="7" strokeLinecap="round" />
-      <path d={WAVE_BOTTOM} fill="none" stroke={dark ? "#ffffff" : "#101828"} strokeWidth="7" strokeLinecap="round" />
+      <path d={WAVE_TOP} fill="none" stroke={dark ? "#5fd3a5" : undefined} className={dark ? undefined : "stroke-mark"} strokeWidth="7" strokeLinecap="round" />
+      <path d={WAVE_BOTTOM} fill="none" stroke={dark ? "#ffffff" : undefined} className={dark ? undefined : "stroke-ink"} strokeWidth="7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -40,8 +40,8 @@ const btn = ({ variant = "primary", size = "md", className }: BtnProps) =>
     size === "sm" && "h-8 px-3 text-[13px]",
     size === "md" && "h-10 px-4 text-sm",
     size === "lg" && "h-12 px-5 text-[15px]",
-    variant === "primary" && "bg-accent text-white hover:bg-accent-ink",
-    variant === "dark" && "bg-ink text-white hover:bg-night-2",
+    variant === "primary" && "bg-accent text-white hover:bg-accent-ink dark:hover:bg-[#0f7353]",
+    variant === "dark" && "bg-inverse text-on-inverse hover:opacity-90",
     variant === "secondary" && "border border-line-2 bg-card text-ink hover:bg-paper-2",
     variant === "ghost" && "text-ink-2 hover:bg-paper-2",
     className,

@@ -4,10 +4,16 @@
   Surfaced design tokens.
   Editorial, data-dense, paper + ink. One accent colour, used sparingly.
 */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Fonts reference next/font variables, so they're inlined. */
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
 
+/* Colours stay as live variables so the dark theme below can swap them. */
+@theme {
   --color-paper: #f5f3ee;
   --color-paper-2: #ebe8e0;
   --color-card: #fffefb;
@@ -18,14 +24,21 @@
   --color-line: #e2ddd2;
   --color-line-2: #d3cdbf;
 
+  /* Dark feature panels: dark in both themes. */
   --color-night: #0b1220;
   --color-night-2: #131c2e;
   --color-night-line: #233046;
+
+  /* Solid "inverse" chips: ink in light mode, near-white in dark mode. */
+  --color-inverse: #101828;
+  --color-on-inverse: #ffffff;
 
   --color-accent: #0f6b4f;
   --color-accent-2: #13855f;
   --color-accent-soft: #e3f1ea;
   --color-accent-ink: #0a4a37;
+  /* The green half of the logo. */
+  --color-mark: #13855f;
 
   --color-warn: #b54708;
   --color-warn-soft: #fdf1e3;
@@ -33,6 +46,58 @@
   --color-bad-soft: #fdecea;
   --color-good: #067647;
   --color-good-soft: #e6f4ec;
+}
+
+:root {
+  --grid-line: rgb(16 24 40 / 0.045);
+  color-scheme: light;
+}
+
+/* Dark theme: switched on by data-theme="dark" on <html> (see the theme toggle). */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --grid-line: rgb(255 255 255 / 0.045);
+
+  --color-paper: #0a0e15;
+  --color-paper-2: #131a26;
+  --color-card: #0f151f;
+  --color-ink: #e8ecf2;
+  --color-ink-2: #b6bfcc;
+  --color-muted: #8892a3;
+  --color-faint: #5d6778;
+  --color-line: #1d2532;
+  --color-line-2: #2a3445;
+
+  --color-night: #0f1624;
+  --color-night-2: #161f30;
+  --color-night-line: #26324a;
+
+  --color-inverse: #e8ecf2;
+  --color-on-inverse: #0a0e15;
+
+  --color-accent: #138a63;
+  --color-accent-2: #34c08a;
+  --color-accent-soft: #0e2a20;
+  --color-accent-ink: #8fe3c0;
+  --color-mark: #5fd3a5;
+
+  --color-warn: #f0a35e;
+  --color-warn-soft: #2b1d10;
+  --color-bad: #f4776c;
+  --color-bad-soft: #2c1513;
+  --color-good: #4cc98a;
+  --color-good-soft: #0f2a1c;
+}
+
+/* Smooth hand-off when switching themes (not on first paint). */
+html.theme-switching,
+html.theme-switching * {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    fill 0.35s ease,
+    stroke 0.35s ease !important;
 }
 
 html {
@@ -74,8 +139,8 @@ form[id] {
 /* Hairline grid background for hero sections. */
 .grid-paper {
   background-image:
-    linear-gradient(to right, rgb(16 24 40 / 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(16 24 40 / 0.045) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
@@ -110,6 +175,22 @@ form[id] {
 }
 
 /* ---------- Marketing effects (see components/fx.tsx) ---------- */
+
+/* On dark panels the grid is drawn inverted; in dark mode it's already light. */
+html[data-theme="dark"] .grid-paper.invert {
+  filter: none;
+}
+
+/* Theme toggle: show the icon for the mode you'd switch to. */
+.theme-icon-sun {
+  display: none;
+}
+html[data-theme="dark"] .theme-icon-sun {
+  display: block;
+}
+html[data-theme="dark"] .theme-icon-moon {
+  display: none;
+}
 
 /* Display serif for editorial accents in headings. */
 .serif {

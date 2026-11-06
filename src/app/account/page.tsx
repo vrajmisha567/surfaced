@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowRight, ExternalLink, KeyRound, LogOut, Plus } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Reveal } from "@/components/fx";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, Label, LinkButton, Logo, ScoreRing, scoreWord } from "@/components/ui";
 import { getCategory } from "@/lib/categories";
 import { db } from "@/lib/db";
@@ -39,6 +40,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
           <Logo />
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <LinkButton href="/#audit" size="sm" className="fx-sheen">
               <Plus size={14} /> New audit
             </LinkButton>
@@ -46,7 +48,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
               // eslint-disable-next-line @next/next/no-img-element
               <img src={me.avatar} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full border border-line object-cover" />
             ) : (
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-sm font-semibold text-white">{initial}</span>
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-inverse text-sm font-semibold text-on-inverse">{initial}</span>
             )}
           </div>
         </div>
@@ -122,7 +124,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
 
           <div className="space-y-4">
             {myPlans.map((c) => (
-              <Card key={c.id} className="border-ink bg-night p-6 text-white">
+              <Card key={c.id} className="border-night bg-night p-6 text-white">
                 <div className="label !text-faint">Your plan</div>
                 <div className="mt-2 text-xl font-semibold tracking-tight">{plans.find((p) => p.id === c.plan)?.name ?? "Pilot"}</div>
                 <p className="mt-1 text-sm text-[#a9b4c6]">{c.name}: weekly tracking and fixes.</p>
@@ -138,7 +140,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={me.avatar} alt="" referrerPolicy="no-referrer" className="h-11 w-11 rounded-full border border-line object-cover" />
                 ) : (
-                  <span className="grid h-11 w-11 place-items-center rounded-full bg-ink font-semibold text-white">{initial}</span>
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-inverse font-semibold text-on-inverse">{initial}</span>
                 )}
                 <div className="min-w-0">
                   <div className="truncate font-medium">{me.name ?? firstName}</div>

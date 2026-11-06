@@ -84,8 +84,8 @@ export function DailyBars({
         <svg width={W} height={height} role="img" aria-label={`Daily chart, ${format(total)} in the last ${range} days`}>
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#e2ddd2" strokeDasharray={t === 0 ? undefined : "2 4"} />
-              <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#98a2b3" className="tabular">
+              <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className="stroke-line" strokeDasharray={t === 0 ? undefined : "2 4"} />
+              <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" className="tabular fill-faint">
                 {format(t)}
               </text>
             </g>
@@ -98,7 +98,7 @@ export function DailyBars({
                 <rect x={pad.l + i * step} y={pad.t} width={step} height={ih} fill="transparent" />
                 {r.value > 0 && <rect x={x} y={y(r.value)} width={bw} height={h} rx={Math.min(3, bw / 2)} fill={ACCENT} opacity={hover === null || hover === i ? 1 : 0.45} />}
                 {i % labelEvery === 0 && (
-                  <text x={x + bw / 2} y={height - 6} textAnchor="middle" fontSize="11" fill="#98a2b3">
+                  <text x={x + bw / 2} y={height - 6} textAnchor="middle" fontSize="11" className="fill-faint">
                     {fmtDay(r.day)}
                   </text>
                 )}
@@ -159,29 +159,29 @@ export function Scatter({
       <svg width={W} height={height} role="img" aria-label={`Scatter of ${yLabel} against ${xLabel}, ${points.length} audits`}>
         {[0, 25, 50, 75, 100].map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#ebe8e0" />
-            <line x1={x(t)} x2={x(t)} y1={pad.t} y2={pad.t + ih} stroke="#ebe8e0" />
-            <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#98a2b3">
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className="stroke-paper-2" />
+            <line x1={x(t)} x2={x(t)} y1={pad.t} y2={pad.t + ih} className="stroke-paper-2" />
+            <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" className="fill-faint">
               {t}
             </text>
-            <text x={x(t)} y={pad.t + ih + 16} textAnchor="middle" fontSize="11" fill="#98a2b3">
+            <text x={x(t)} y={pad.t + ih + 16} textAnchor="middle" fontSize="11" className="fill-faint">
               {t}
             </text>
           </g>
         ))}
-        <text x={pad.l + iw / 2} y={height - 4} textAnchor="middle" fontSize="11" fill="#667085">
+        <text x={pad.l + iw / 2} y={height - 4} textAnchor="middle" fontSize="11" className="fill-muted">
           {xLabel} →
         </text>
-        <text x={12} y={pad.t + ih / 2} textAnchor="middle" fontSize="11" fill="#667085" transform={`rotate(-90 12 ${pad.t + ih / 2})`}>
+        <text x={12} y={pad.t + ih / 2} textAnchor="middle" fontSize="11" className="fill-muted" transform={`rotate(-90 12 ${pad.t + ih / 2})`}>
           {yLabel} →
         </text>
         {fit && (
-          <line x1={x(0)} y1={y(clamp(fit[0]))} x2={x(100)} y2={y(clamp(fit[0] + fit[1] * 100))} stroke="#101828" strokeWidth={1.5} strokeDasharray="5 5" opacity={0.5} />
+          <line x1={x(0)} y1={y(clamp(fit[0]))} x2={x(100)} y2={y(clamp(fit[0] + fit[1] * 100))} className="stroke-ink" strokeWidth={1.5} strokeDasharray="5 5" opacity={0.5} />
         )}
         {points.map((p, i) => (
           <g key={i} onMouseEnter={() => setHover(i)}>
             <circle cx={x(p.x)} cy={y(p.y)} r={12} fill="transparent" />
-            <circle cx={x(p.x)} cy={y(p.y)} r={hover === i ? 6 : 4.5} fill={ACCENT} fillOpacity={0.75} stroke="#fffefb" strokeWidth={2} />
+            <circle cx={x(p.x)} cy={y(p.y)} r={hover === i ? 6 : 4.5} fill={ACCENT} fillOpacity={0.75} className="stroke-card" strokeWidth={2} />
           </g>
         ))}
       </svg>
