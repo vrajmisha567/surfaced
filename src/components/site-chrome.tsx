@@ -15,7 +15,7 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-2">
           <Link href="/login" className="hidden px-2 text-sm text-ink-2 hover:text-ink sm:block">Log in</Link>
-          <LinkButton href="/#audit" size="sm">Free audit</LinkButton>
+          <LinkButton href="/#audit" size="sm" className="fx-sheen">Free audit</LinkButton>
         </div>
       </div>
     </header>
@@ -28,7 +28,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <Logo />
-          <p className="mt-3 max-w-xs text-sm text-muted">AI search visibility for local businesses in {site.city}, South Australia.</p>
+          <p className="mt-3 max-w-xs text-sm text-muted">AI search visibility for local businesses, in any city.</p>
         </div>
         <div className="text-sm">
           <div className="label mb-3">Product</div>
@@ -42,7 +42,6 @@ export function SiteFooter() {
           <div className="label mb-3">Contact</div>
           <ul className="space-y-2 text-ink-2">
             <li><a href={`mailto:${site.contactEmail}`} className="hover:text-ink">{site.contactEmail}</a></li>
-            <li>{site.city}, SA</li>
             {site.abn && <li>ABN {site.abn}</li>}
           </ul>
         </div>

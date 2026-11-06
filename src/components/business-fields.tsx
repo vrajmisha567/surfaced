@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { categories, categoryGroups, suburbs } from "@/lib/categories";
 import { countryOptions, getCountry, groupLabels } from "@/lib/locale";
 import { inputCls } from "./ui";
@@ -49,16 +49,50 @@ export function CategoryPicker({ defaultValue = "plumber", plural = false, class
   );
 }
 
-/** Suburb or neighbourhood, city and country. Defaults to Adelaide, Australia. */
+/** Rough country from the browser's time zone, for the public form. Unknown zones keep the default. */
+function countryFromTimeZone(): string | null {
+  let tz = "";
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+  } catch {
+    return null;
+  }
+  const exact: Record<string, string> = {
+    "Pacific/Auckland": "NZ", "Pacific/Chatham": "NZ", "Europe/London": "GB", "Europe/Belfast": "GB", "Europe/Dublin": "IE",
+    "Asia/Kolkata": "IN", "Asia/Calcutta": "IN", "Asia/Singapore": "SG", "Asia/Dubai": "AE", "Africa/Johannesburg": "ZA",
+  };
+  if (exact[tz]) return exact[tz];
+  if (tz.startsWith("Australia/")) return "AU";
+  const canada = ["Toronto", "Vancouver", "Edmonton", "Winnipeg", "Halifax", "St_Johns", "Regina", "Moncton", "Whitehorse", "Iqaluit", "Yellowknife", "Montreal"];
+  if (tz.startsWith("Canada/") || canada.some((c) => tz === `America/${c}`)) return "CA";
+  const usa = ["New_York", "Chicago", "Denver", "Los_Angeles", "Phoenix", "Anchorage", "Detroit", "Boise", "Indiana/Indianapolis", "Kentucky/Louisville"];
+  if (tz.startsWith("US/") || tz === "Pacific/Honolulu" || usa.some((c) => tz === `America/${c}`)) return "US";
+  return null;
+}
+
+/**
+ * Suburb or neighbourhood, city and country.
+ * The admin forms default to Adelaide, Australia; the public audit form passes `guessCountry`
+ * and starts with an empty city in the visitor's likely country.
+ */
 export function LocationFields({
   defaults = {},
   areaRequired = false,
+  guessCountry = false,
 }: {
   defaults?: { suburb?: string; city?: string; country?: string };
   areaRequired?: boolean;
+  guessCountry?: boolean;
 }) {
   const [country, setCountry] = useState((defaults.country ?? "AU").toUpperCase());
-  const [city, setCity] = useState(defaults.city ?? (country === "AU" ? "Adelaide" : ""));
+  const [city, setCity] = useState(defaults.city ?? (country === "AU" && !guessCountry ? "Adelaide" : ""));
+  useEffect(() => {
+    if (!guessCountry || defaults.country) return;
+    const guess = countryFromTimeZone();
+    // Reading the time zone only works in the browser, so this runs once after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (guess) setCountry(guess);
+  }, [guessCountry, defaults.country]);
   const c = getCountry(country);
   const areaLabel = c.areaWord === "suburb" ? "Suburb" : c.areaWord === "neighbourhood" ? "Neighbourhood" : "Area";
   const example = country === "AU" && city.toLowerCase() === "adelaide" ? "Norwood" : c.areaWord === "neighbourhood" ? "Brooklyn" : "Camden";
@@ -73,11 +107,13 @@ export function LocationFields({
         className={inputCls}
         aria-label={areaLabel}
       />
-      <datalist id="adelaide-suburbs">
-        {suburbs.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
+      {city.toLowerCase() === "adelaide" && (
+        <datalist id="adelaide-suburbs">
+          {suburbs.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
       <input
         name="city"
         required
@@ -95,7 +131,7 @@ export function LocationFields({
           setCountry(next);
           // Don't leave "Adelaide" sitting in the box after switching to, say, the UK.
           if (next !== "AU" && city.toLowerCase() === "adelaide") setCity("");
-          if (next === "AU" && !city) setCity("Adelaide");
+          if (next === "AU" && !city && !guessCountry) setCity("Adelaide");
         }}
         className={inputCls}
         aria-label="Country"

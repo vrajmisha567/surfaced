@@ -17,7 +17,7 @@ export function GET() {
     ...plans.map((p) => `- ${p.name}: $${p.price}${p.interval === "month" ? "/month" : " one-off"}. ${p.blurb}`),
     "",
     "## Who we work with",
-    `- Local businesses in Adelaide, South Australia: ${categories.map((c) => c.plural.toLowerCase()).join(", ")}.`,
+    `- Local businesses in any city and country: ${categories.map((c) => c.plural.toLowerCase()).join(", ")}.`,
     "",
     "## Links",
     `- [Free audit](${site.url}/#audit)`,

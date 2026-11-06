@@ -2,31 +2,35 @@
 
 import { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
+import { BorderBeam } from "./fx";
 
 // Illustrative only: fictional businesses, shown to explain what an AI answer looks like.
 const examples = [
   {
     engine: "ChatGPT",
-    q: "Who's a reliable plumber in Norwood for a burst hot water system?",
-    pre: "For urgent hot water repairs in Norwood, ",
-    name: "Parade Plumbing Co.",
-    post: " is frequently recommended. They list 24/7 call-outs, show their SA licence, and have 180+ reviews mentioning same-day fixes.",
+    city: "London, UK",
+    q: "Who's a reliable plumber in Camden for a burst pipe?",
+    pre: "For urgent burst-pipe repairs in Camden, ",
+    name: "Kestrel Plumbing Co.",
+    post: " is frequently recommended. They list 24/7 call-outs, show their Gas Safe registration, and have 180+ reviews mentioning same-day fixes.",
     stats: ["Named in 9 of 12 answers", "Rank #1 in 6", "Cited source: own FAQ page"],
   },
   {
     engine: "Perplexity",
-    q: "Best dentist in Unley for nervous patients?",
+    city: "Austin, US",
+    q: "Best dentist in Austin for nervous patients?",
     pre: "Locals often mention ",
-    name: "Unley Road Dental",
+    name: "Bluebell Dental Studio",
     post: ". Their site explains sedation options in plain language, and reviews highlight a calm, unhurried approach.",
-    stats: ["Named in 7 of 12 answers", "4 engines know them", "Cited: HealthEngine, own site"],
+    stats: ["Named in 7 of 12 answers", "4 engines know them", "Cited: Yelp, own site"],
   },
   {
     engine: "Gemini",
-    q: "Dog-friendly cafe in Glenelg for breakfast?",
+    city: "Melbourne, AU",
+    q: "Dog-friendly cafe in Fitzroy for breakfast?",
     pre: "Try ",
-    name: "Jetty Street Espresso",
-    post: ". It's two minutes from the beach, has water bowls out front and an all-day breakfast menu with vegan options.",
+    name: "Harbour Lane Espresso",
+    post: ". It has water bowls out front, a shaded courtyard and an all-day breakfast menu with vegan options.",
     stats: ["Named in 8 of 12 answers", "Rank #1 on Gemini", "Cited: Google Business Profile"],
   },
 ];
@@ -52,9 +56,16 @@ function Example({ i }: { i: number }) {
   const done = typed >= ex.q.length;
 
   return (
-    <div className="rounded-2xl border border-night-line bg-night p-6 text-white shadow-[0_30px_80px_-30px_rgba(11,18,32,.55)] sm:p-7">
+    <div className="relative rounded-2xl border border-night-line bg-night p-6 text-white shadow-[0_40px_100px_-30px_rgba(11,18,32,.6)] sm:p-7">
+      <BorderBeam size={180} duration={10} from="#13855f" to="#a7f0d2" />
       <div className="flex items-center justify-between">
-        <div className="label !text-faint">Buyer question · {ex.engine}</div>
+        <div className="label flex items-center gap-2 !text-faint">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="fx-ping absolute inline-flex h-full w-full rounded-full bg-[#5fd3a5]" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#5fd3a5]" />
+          </span>
+          {ex.engine} · {ex.city}
+        </div>
         <div className="flex gap-1">
           {examples.map((_, k) => (
             <span key={k} className={`h-1 w-4 rounded-full ${k === i ? "bg-accent-2" : "bg-night-line"}`} />

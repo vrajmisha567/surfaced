@@ -1,10 +1,11 @@
 export const site = {
   name: "Surfaced",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  /** Where Surfaced itself is based: used in email footers, not on the site. */
   city: "Adelaide",
   region: "South Australia",
   description:
-    "Surfaced checks whether ChatGPT, Gemini, Perplexity and Claude recommend your business when locals ask, then fixes what's stopping them. Built for Adelaide shops and trades.",
+    "Surfaced checks whether ChatGPT, Gemini, Perplexity and Claude recommend your business when customers ask, then fixes what's stopping them. For local businesses in any city, anywhere in the world.",
   contactEmail: process.env.CONTACT_EMAIL ?? "hello@surfaced.au",
   bookingUrl: process.env.NEXT_PUBLIC_BOOKING_URL ?? "",
   abn: process.env.NEXT_PUBLIC_ABN ?? "",
@@ -18,10 +19,10 @@ export const plans = [
     interval: "once" as const,
     blurb: "One-off. We audit, then install the fixes AI engines look for.",
     features: [
-      "Full six-area AI visibility audit",
+      "Full seven-area AI visibility audit",
       "LocalBusiness schema written and installed",
       "llms.txt and AI-crawler access set up",
-      "FAQ copy that answers what locals ask",
+      "FAQ copy that answers what customers ask",
       "Google Business Profile cleanup list",
       "Directory citation list for your trade",
     ],
@@ -47,13 +48,13 @@ export const plans = [
     name: "Growth",
     price: 750,
     interval: "month" as const,
-    blurb: "For businesses in crowded categories with more suburbs to win.",
+    blurb: "For businesses in crowded categories with more areas to win.",
     features: [
       "Everything in Visibility",
       "5 competitors and up to 30 tracked questions",
       "6 answer-first pages each month",
       "Review request system set up",
-      "Suburb landing pages",
+      "Landing pages for each area you serve",
       "Monthly 20-minute call",
     ],
   },

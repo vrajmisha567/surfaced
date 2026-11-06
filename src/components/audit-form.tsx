@@ -12,7 +12,7 @@ const steps = [
   "Reading structured data",
   "Checking AI crawler access",
   "Checking where you rank on Google Maps",
-  "Asking AI assistants the questions locals ask",
+  "Asking AI assistants the questions customers ask",
   "Comparing against local competitors",
   "Scoring visibility and site readiness",
 ];
@@ -48,7 +48,7 @@ function ProgressSteps() {
 function Submit({ compact }: { compact?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" disabled={pending} className={compact ? "" : "w-full sm:w-auto"}>
+    <Button type="submit" size="lg" disabled={pending} className={compact ? "fx-sheen" : "fx-sheen w-full sm:w-auto"}>
       {pending ? <Loader2 size={16} className="animate-spin" /> : null}
       {pending ? "Running audit" : "Run my free audit"}
       {!pending && <ArrowRight size={16} />}
@@ -63,12 +63,12 @@ export function AuditForm({ defaultCategory = "plumber" }: { defaultCategory?: s
     <form action={action} className="space-y-3" id="audit">
       <div className="grid gap-3 sm:grid-cols-2">
         <input name="businessName" required placeholder="Business name" defaultValue={f.businessName} className={inputCls} aria-label="Business name" />
-        <input name="url" required placeholder="yourbusiness.com.au" defaultValue={f.url} className={inputCls} aria-label="Website" inputMode="url" />
+        <input name="url" required placeholder="yourbusiness.com" defaultValue={f.url} className={inputCls} aria-label="Website" inputMode="url" />
         <CategoryPicker
           className="sm:col-span-2"
           defaultValue={f.category === "custom" && f.customType ? `custom:${f.customType}` : (f.category ?? defaultCategory)}
         />
-        <LocationFields defaults={{ suburb: f.suburb, city: f.city, country: f.country }} />
+        <LocationFields guessCountry defaults={{ suburb: f.suburb, city: f.city, country: f.country }} />
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <input name="email" type="email" placeholder="Email for a copy (optional)" defaultValue={f.email} className={inputCls} aria-label="Email" />
