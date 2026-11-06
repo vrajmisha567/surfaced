@@ -39,15 +39,15 @@ function basePrompts(group: Group, s: string, sp: string): string[] {
     case "Trades":
     case "Home":
     case "Other":
-      return [`Who is the best ${s} in {suburb}, {city}?`, `Recommend a reliable ${s} near {suburb}, {city}`, reviews];
+      return [`Who is the best ${s} in {city}?`, `Recommend a reliable ${s} near {suburb}, {city}`, reviews];
     case "Health":
-      return [`Who is the best ${s} in {suburb}, {city}?`, `Recommend a ${s} near {suburb}, {city} that's taking new patients`, reviews];
+      return [`Who is the best ${s} in {city}?`, `Recommend a ${s} near {suburb}, {city} that's taking new patients`, reviews];
     case "Auto":
-      return [`Who is an honest ${s} in {suburb}, {city}?`, `Recommend a reliable ${s} near {suburb}, {city}`, reviews];
+      return [`Who is the best ${s} in {city}?`, `Recommend an honest ${s} near {suburb}, {city}`, reviews];
     case "Professional":
-      return [`Recommend a good ${s} in {suburb}, {city}`, `Who is the best ${s} near {suburb}, {city}?`, reviews];
+      return [`Who is the best ${s} in {city}?`, `Recommend a good ${s} near {suburb}, {city}`, reviews];
     default:
-      return [`Best ${s} in {suburb}, {city}`, `Recommend a good ${s} near {suburb}, {city}`, reviews];
+      return [`Best ${s} in {city}`, `Recommend a good ${s} near {suburb}, {city}`, reviews];
   }
 }
 

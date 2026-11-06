@@ -4,48 +4,12 @@ import { suburbs } from "@/lib/categories";
 import type { Place } from "@/lib/locale";
 import { askEngine } from "./engines";
 
-const STOP = new Set(["pty", "ltd", "limited", "the", "co", "company", "group", "services", "service", "sa", "adelaide", "australia", "and", "of"]);
+import { coreName, hostOf, hostOf as domainRoot, norm, similarName } from "@/lib/names";
 
-export function norm(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+/** The business being checked. aliases: other names it goes by, e.g. its Google Maps listing name. */
+export type Business = { name: string; website?: string; aliases?: string[] };
 
-function coreName(name: string) {
-  return norm(name)
-    .split(" ")
-    .filter((w) => !STOP.has(w))
-    .join(" ");
-}
-
-function domainRoot(url: string | undefined) {
-  if (!url) return null;
-  try {
-    const host = new URL(/^https?:/.test(url) ? url : `https://${url}`).hostname.replace(/^www\./, "");
-    return host;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Close variants of the same name: "Camden High Dental Practice" for "Camden High Street Dental Practice".
- * Word overlap (Jaccard) of at least 0.7 with 3+ shared words, so short names ("Plumbing Doctor" vs
- * "Doctor Plumbing") never fuzzy-match: a false match would overstate a client's visibility.
- */
-export function similarName(a: string, b: string) {
-  const words = (s: string) => new Set(norm(s).split(" ").filter((w) => w && !STOP.has(w)));
-  const A = words(a);
-  const B = words(b);
-  const shared = [...A].filter((w) => B.has(w)).length;
-  const union = new Set([...A, ...B]).size;
-  return shared >= 3 && shared / union >= 0.7;
-}
+export { norm, similarName };
 
 /** Does this answer mention the business, by name or by linking its domain? */
 export function mentions(answer: string, citations: { url: string }[], name: string, website?: string) {
@@ -122,18 +86,23 @@ export function extractNames(answer: string): string[] {
 export async function runPrompt(
   engine: EngineId,
   prompt: string,
-  business: { name: string; website?: string },
+  business: Business,
   competitors: string[] = [],
   place?: Place,
 ): Promise<EngineAnswer> {
   const t0 = Date.now();
   try {
-    const { answer, citations, grounded } = await askEngine(engine, prompt, place);
+    const { answer, citations, grounded, grounding } = await askEngine(engine, prompt, place);
     // The business's own suburb and city often appear as headings; they aren't rivals.
     const own = new Set([place?.area, place?.city].filter(Boolean).map((p) => norm(p!)));
     const named = extractNames(answer).filter((n) => !own.has(norm(n)));
-    const isUs = (n: string) => mentions(n, [], business.name) || similarName(n, business.name);
-    const mentioned = mentions(answer, citations, business.name, business.website) || named.some(isUs);
+    // The name typed into the audit plus the name on Google Maps ("Kinetic Rehab" vs "Kinetic Rehabilitation + Performance").
+    const ourNames = [business.name, ...(business.aliases ?? [])];
+    const ourHost = hostOf(business.website);
+    const ourCitations = citations.filter((c) => ourHost && hostOf(c.url) === ourHost).map((c) => c.title ?? "");
+    const isUs = (n: string) =>
+      ourNames.some((x) => mentions(n, [], x) || similarName(n, x)) || ourCitations.some((t) => t && norm(t) === norm(n));
+    const mentioned = ourNames.some((x) => mentions(answer, citations, x, business.website)) || named.some(isUs);
     const others = named.filter((n) => !isUs(n));
 
     let position: number | null = null;
@@ -142,8 +111,9 @@ export async function runPrompt(
       if (idx >= 0) position = idx + 1;
       else {
         // Mentioned in prose, not in a list: rank by first appearance.
-        const at = norm(answer).indexOf(coreName(business.name) || norm(business.name));
-        position = named.filter((n) => norm(answer).indexOf(norm(n)) < at).length + 1;
+        const text = norm(answer);
+        const at = Math.min(...[...ourNames, ...ourCitations].map((x) => text.indexOf(coreName(x) || norm(x))).filter((i) => i >= 0));
+        position = Number.isFinite(at) ? named.filter((n) => text.indexOf(norm(n)) < at).length + 1 : null;
       }
     }
 
@@ -157,6 +127,7 @@ export async function runPrompt(
       othersNamed: others.slice(0, 10),
       competitorsMentioned: competitors.filter((c) => c && mentions(answer, citations, c)),
       grounded: grounded ?? true,
+      grounding: grounding ?? (grounded === false ? "none" : "web"),
       ms: Date.now() - t0,
     };
   } catch (e) {
@@ -179,7 +150,7 @@ export async function runPrompt(
 export async function runMatrix(
   engines: EngineId[],
   prompts: string[],
-  business: { name: string; website?: string },
+  business: Business,
   competitors: string[] = [],
   place?: Place,
   concurrency = 4,

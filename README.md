@@ -1,8 +1,8 @@
 # Surfaced
 
-**AI search visibility (GEO) for local businesses in Adelaide.**
+**AI search visibility (GEO) for local businesses. Built in Adelaide, works for any city.**
 
-Surfaced checks whether ChatGPT, Gemini, Perplexity and Claude name a business when locals ask for a recommendation ("who's the best plumber in Norwood?"), scores the six site factors those engines rely on, generates the fixes, and tracks share of voice against local competitors every week.
+Surfaced checks whether ChatGPT, Gemini, Perplexity and Claude name a business when locals ask for a recommendation ("who's the best plumber in Norwood?"), checks where it ranks on Google Maps, scores the five site factors those engines rely on, generates the fixes, and tracks share of voice against local competitors every week.
 
 It runs as a small agency in a box: a public audit tool that generates leads, a prospecting CRM that writes cold outreach from real audit findings, client workspaces with weekly tracking, a private client portal, and Stripe billing.
 
@@ -10,7 +10,7 @@ It runs as a small agency in a box: a public audit tool that generates leads, a 
 
 | Module | What it does |
 |---|---|
-| **Free audit** (`/`) | Business URL, suburb and category in. Score out of 100 across six weighted areas, 30+ checks, each with a plain-English fix. Live answers from up to four AI engines. |
+| **Free audit** (`/`) | Business URL, business type (87 built in, or type your own) and location (any city, ~50 countries) in. Score out of 100: 75% "visible now" (AI answers + Google Maps) and 25% "site readiness" (five site areas), 35+ checks with plain-English fixes. |
 | **Report** (`/report/[id]`) | Shareable report: which engines named you, who they named instead, priority fixes, every check. Prints to PDF. |
 | **Prospecting CRM** (`/app/prospects`) | Pulls businesses from Google Places by category and suburb, audits them in bulk, writes a personalised cold email from each audit (Spam Act opt-out included), and tracks pipeline status. |
 | **Client workspace** (`/app/clients/[id]`) | Weekly multi-engine tracking, mention rate and share-of-voice charts, fix checklist, and a generated Fix Pack: LocalBusiness + FAQ JSON-LD, `llms.txt`, AI-crawler `robots.txt`, FAQ copy, Google Business Profile checklist, directory list. |
@@ -18,16 +18,22 @@ It runs as a small agency in a box: a public audit tool that generates leads, a 
 | **Billing** | Stripe Checkout for a one-off Fix Pack and two monthly plans; webhook creates or pauses the client. |
 | **Weekly cron** | Vercel Cron re-asks every tracked question across every engine each Monday morning (Adelaide time). |
 
-### The six scored areas
+### How the score works
 
-1. **AI visibility (25%)**: named in live engine answers, top-3 placement, engine coverage
-2. **Structured data (15%)**: LocalBusiness subtype, address, phone, hours, service area, sameAs, FAQPage
-3. **Name, address, phone (15%)**: consistency across page and schema, suburb mentioned
-4. **Answer-first content (15%)**: H1 states service + place, FAQ section, question headings, depth
-5. **Entity strength (15%)**: Google Business Profile link, social/directory profiles, reviews, ABN
-6. **AI crawler access (15%)**: GPTBot / OAI-SearchBot / PerplexityBot / ClaudeBot / Google-Extended allowed, `llms.txt`, sitemap, server-rendered content
+The headline score is **75% "visible now" + 25% "site readiness"**, so a business that AI already names in the top 3 scores high, and the report still shows what would keep it there.
 
-If no AI keys are configured, the AI pillar is marked "not measured" and the score is re-weighted across the other five, rather than faked.
+**Visible now**
+1. **AI answers**: named in live engine answers, top-3 placement, engine coverage. When Gemini can't use Google Search (free API keys), it answers from the live Google Maps results for each question, which is the local data the Gemini app leans on. Without that, an API model answers from memory and names a different list from the app.
+2. **Google Maps & reviews**: rank on Maps for "best [type] in [city]" (no CBD map bias), star rating, review count against the top 3, profile completeness.
+
+**Site readiness**
+3. **Structured data**: LocalBusiness subtype, address, phone, hours, service area, sameAs, FAQPage
+4. **Name, address, phone**: consistency across page and schema, area mentioned (country-aware phone and postcode formats)
+5. **Answer-first content**: H1 states service + place, FAQ section, question headings, depth
+6. **Entity strength**: Google Business Profile link, social/directory profiles, reviews, business ID (ABN, NZBN, company number...)
+7. **AI crawler access**: AI crawlers allowed in robots.txt and through the firewall, `llms.txt`, sitemap, server-rendered content
+
+Anything that can't be measured (no AI keys, no Places key) is marked "not measured" and left out of the maths rather than faked.
 
 ## Stack
 

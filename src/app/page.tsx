@@ -95,7 +95,7 @@ export default function Home() {
           <div className="mx-auto grid max-w-6xl grid-cols-2 divide-line px-5 md:grid-cols-4 md:divide-x">
             {[
               ["4", "AI engines checked", "ChatGPT · Gemini · Perplexity · Claude"],
-              ["6", "areas scored", "From schema to crawler access"],
+              ["7", "areas scored", "From Google Maps to crawler access"],
               ["30+", "individual checks", "Each with a plain-English fix"],
               ["Weekly", "re-checks", "Share of voice vs 3 competitors"],
             ].map(([n, l, s]) => (
@@ -156,7 +156,7 @@ export default function Home() {
             <h2 className="mt-3 max-w-2xl text-[34px] font-semibold leading-tight tracking-tight">Audit, fix, then prove it moved.</h2>
             <div className="mt-10 grid gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-3">
               {[
-                ["01", "Audit", "We ask the four big AI engines the questions your customers ask, and score your site on the six things they use to decide who to name."],
+                ["01", "Audit", "We ask AI engines the questions your customers ask, check where you rank on Google Maps, and score your site on the five things engines use to decide who to name."],
                 ["02", "Fix", "We write and install the fixes: LocalBusiness schema, FAQ answers, llms.txt, crawler access, Google Business Profile cleanup and directory listings."],
                 ["03", "Track", "Every week we re-ask the same questions and show you, in a private dashboard, how often you're named and who's named instead."],
               ].map(([n, t, d]) => (
@@ -175,7 +175,7 @@ export default function Home() {
           <div className="grid gap-12 lg:grid-cols-[1.2fr_1fr]">
             <div>
               <Label>What we check</Label>
-              <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">Six areas decide whether AI can cite you.</h2>
+              <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">Two questions: are you named now, and will it last?</h2>
               <div className="mt-8 divide-y divide-line border-y border-line">
                 {Object.entries(pillarMeta).map(([k, p], i) => (
                   <div key={k} className="grid grid-cols-[2.5rem_1fr_auto] items-baseline gap-3 py-4">
@@ -184,7 +184,7 @@ export default function Home() {
                       <div className="font-medium">{p.label}</div>
                       <div className="mt-0.5 text-sm text-ink-2">{p.summary}</div>
                     </div>
-                    <span className="label">{Math.round(p.weight * 100)}%</span>
+                    <span className="label">{p.group === "visibility" ? "Visible now" : "Readiness"}</span>
                   </div>
                 ))}
               </div>

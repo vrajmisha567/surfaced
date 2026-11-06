@@ -11,9 +11,10 @@ const steps = [
   "Loading your homepage",
   "Reading structured data",
   "Checking AI crawler access",
-  "Asking ChatGPT, Gemini, Perplexity and Claude",
+  "Checking where you rank on Google Maps",
+  "Asking AI assistants the questions locals ask",
   "Comparing against local competitors",
-  "Scoring six areas",
+  "Scoring visibility and site readiness",
 ];
 
 function Progress() {

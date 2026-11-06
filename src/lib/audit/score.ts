@@ -1,17 +1,25 @@
-import type { AuditInput, Check, CrawlerAccess, EngineAnswer, Extracted, Pillar, PillarKey } from "@/lib/types";
+import type { AuditInput, Check, CrawlerAccess, EngineAnswer, Extracted, LocalPresence, Pillar, PillarKey } from "@/lib/types";
 import { faqsFor, getCategory } from "@/lib/categories";
 import { getCountry, nearPlace, placeOf, shortPlace } from "@/lib/locale";
 import { isLocalType, normalisePhone } from "./extract";
 import { norm } from "@/lib/ai/visibility";
 
-export const pillarMeta: Record<PillarKey, { label: string; summary: string; weight: number }> = {
-  ai: { label: "AI visibility", summary: "Do ChatGPT, Gemini, Perplexity and Claude name you when locals ask?", weight: 0.25 },
-  schema: { label: "Structured data", summary: "Machine-readable facts about your business that AI engines trust.", weight: 0.15 },
-  nap: { label: "Name, address, phone", summary: "The same business details everywhere, so engines know it's you.", weight: 0.15 },
-  content: { label: "Answer-first content", summary: "Pages that answer the exact questions customers ask.", weight: 0.15 },
-  entity: { label: "Entity strength", summary: "Proof you're a real, established local business.", weight: 0.15 },
-  crawl: { label: "AI crawler access", summary: "Whether AI crawlers are allowed in and can read your site.", weight: 0.15 },
+/**
+ * Two groups. "visibility" is the outcome: are you named and ranked right now. "readiness" is the
+ * website work that makes it last. Weights are within each group; the headline score is
+ * 75% visibility + 25% readiness, so a business AI already ranks top 3 scores high.
+ */
+export const pillarMeta: Record<PillarKey, { label: string; summary: string; weight: number; group: "visibility" | "readiness" }> = {
+  ai: { label: "AI answers", summary: "Do ChatGPT, Gemini, Perplexity and Claude name you when people ask?", weight: 0.5, group: "visibility" },
+  local: { label: "Google Maps & reviews", summary: "Where you rank on Google Maps and how strong your reviews are. Gemini and Google's AI lean on this for local questions.", weight: 0.5, group: "visibility" },
+  schema: { label: "Structured data", summary: "Machine-readable facts about your business that AI engines trust.", weight: 0.2, group: "readiness" },
+  nap: { label: "Name, address, phone", summary: "The same business details everywhere, so engines know it's you.", weight: 0.2, group: "readiness" },
+  content: { label: "Answer-first content", summary: "Pages that answer the exact questions customers ask.", weight: 0.2, group: "readiness" },
+  entity: { label: "Entity strength", summary: "Proof you're a real, established local business.", weight: 0.2, group: "readiness" },
+  crawl: { label: "AI crawler access", summary: "Whether AI crawlers are allowed in and can read your site.", weight: 0.2, group: "readiness" },
 };
+
+export const VISIBILITY_SHARE = 0.75;
 
 function score(checks: Check[]) {
   const total = checks.reduce((s, c) => s + c.weight, 0);
@@ -219,8 +227,8 @@ export function scoreAi(answers: EngineAnswer[], measured: boolean): Pillar {
           label: "Live AI checks",
           status: "info",
           detail: measured
-            ? "The AI engines didn't respond for this audit, so live checks were skipped. Your score is based on the five site factors that decide whether engines can cite you."
-            : "Live engine checks aren't switched on for this audit. Your score is based on the five site factors that decide whether engines can cite you.",
+            ? "The AI engines didn't respond for this audit, so live answer checks were skipped. Your score uses Google Maps and your site instead."
+            : "Live engine checks aren't switched on for this audit. Your score uses Google Maps and your site instead.",
           weight: 0,
         },
       ],
@@ -260,11 +268,58 @@ export function scoreAi(answers: EngineAnswer[], measured: boolean): Pillar {
   return { key: "ai", ...pillarMeta.ai, score: score(checks), checks };
 }
 
+function groupScore(pillars: Pillar[], group: "visibility" | "readiness") {
+  const measured = pillars.filter((p) => pillarMeta[p.key].group === group && p.score !== null);
+  if (!measured.length) return null;
+  const w = measured.reduce((s, p) => s + pillarMeta[p.key].weight, 0);
+  return Math.round(measured.reduce((s, p) => s + (p.score ?? 0) * pillarMeta[p.key].weight, 0) / w);
+}
+
+/** Headline = 75% "visible now" + 25% "site readiness". Falls back to whichever half was measured. */
+export function scoreSummary(pillars: Pillar[]) {
+  const visibility = groupScore(pillars, "visibility");
+  const readiness = groupScore(pillars, "readiness");
+  const overall =
+    visibility === null ? (readiness ?? 0) : readiness === null ? visibility : Math.round(VISIBILITY_SHARE * visibility + (1 - VISIBILITY_SHARE) * readiness);
+  return { overall, visibility, readiness };
+}
+
 export function overallScore(pillars: Pillar[]) {
-  const measured = pillars.filter((p) => p.score !== null);
-  const totalWeight = measured.reduce((s, p) => s + pillarMeta[p.key].weight, 0);
-  const v = measured.reduce((s, p) => s + (p.score ?? 0) * pillarMeta[p.key].weight, 0) / (totalWeight || 1);
-  return Math.round(v);
+  return scoreSummary(pillars).overall;
+}
+
+export function scoreLocal(l: LocalPresence | null): Pillar {
+  const base = { key: "local" as const, ...pillarMeta.local };
+  if (!l) {
+    return {
+      ...base,
+      score: null,
+      checks: [{ id: "local-unmeasured", label: "Google Maps checks", status: "info", detail: "Google Maps couldn't be checked for this audit.", weight: 0 }],
+    };
+  }
+  const q = `"${l.query}"`;
+  const leaders = l.leaders.map((x) => x.name).join(", ");
+  const leaderReviews = l.leaders.length ? Math.min(...l.leaders.map((x) => x.reviews)) : 100;
+  const rating = l.rating ?? 0;
+  const reviews = l.reviews ?? 0;
+  const checks: Check[] = [
+    c("local-rank", "Ranks on Google Maps", l.rank !== null && l.rank <= 3 ? true : l.rank !== null && l.rank <= 10 ? "warn" : false, 4,
+      l.rank !== null ? `#${l.rank} on Google Maps for ${q}.` : `Not in the top 20 on Google Maps for ${q}.${leaders ? ` The top 3 are ${leaders}.` : ""}`,
+      "Climb the Maps results: complete every field of your Google Business Profile, choose the most specific primary category, and keep earning reviews that mention the service and suburb."),
+    c("local-profile", "Google Business Profile found", l.found, 1,
+      l.found ? `Found "${l.name}" on Google Maps.` : "No Google Maps listing matched this business name and website.",
+      "Claim and verify your Google Business Profile, using exactly the same name and website as your site."),
+    c("local-rating", "Star rating", !l.found ? false : rating >= 4.6 ? true : rating >= 4 ? "warn" : false, 1.5,
+      l.found ? (l.rating ? `${rating.toFixed(1)} stars on Google.` : "No Google rating yet.") : "No listing found, so no rating.",
+      "Reply to every review and fix the issues behind low ones. Ask happy customers to review straight after the job."),
+    c("local-reviews", "Number of reviews", reviews >= Math.max(100, leaderReviews) ? true : reviews >= 25 ? "warn" : false, 2,
+      `${reviews} Google review${reviews === 1 ? "" : "s"}.${l.leaders.length ? ` The top 3 on Maps have at least ${leaderReviews}.` : ""}`,
+      "Ask every happy customer for a Google review with a direct link (text it after the job). Volume and recency both count."),
+    c("local-complete", "Profile has website and hours", l.found && l.hasWebsite && l.hasHours ? true : l.found ? "warn" : false, 0.5,
+      l.found ? `Website ${l.hasWebsite ? "listed" : "missing"}, opening hours ${l.hasHours ? "listed" : "missing"}.` : "No listing found.",
+      "Add your website and opening hours to your Google Business Profile."),
+  ];
+  return { ...base, score: score(checks), checks };
 }
 
 export function gradeFor(score: number): "A" | "B" | "C" | "D" | "F" {

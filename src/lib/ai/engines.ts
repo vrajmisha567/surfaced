@@ -3,8 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 import type { EngineId } from "@/lib/types";
 import { getCountry, type Place } from "@/lib/locale";
+import { searchLocal, type LocalListing } from "@/lib/places";
+import { coreName, hostOf, norm } from "@/lib/names";
 
-export type EngineReply = { answer: string; citations: { url: string; title?: string }[]; grounded?: boolean };
+/** How an answer was sourced: a live web search, live Google Maps results, or the model's memory. */
+export type Grounding = "web" | "maps" | "none";
+export type EngineReply = { answer: string; citations: { url: string; title?: string }[]; grounded?: boolean; grounding?: Grounding };
 
 export const engineLabels: Record<EngineId, string> = {
   chatgpt: "ChatGPT",
@@ -109,33 +113,82 @@ let geminiSearchBlocked = false;
 // Free-tier limits differ per model, so step down to lighter models when one is busy (503) or rate-limited (429).
 const GEMINI_FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3.1-flash-lite"];
 
-async function geminiCall(model: string, prompt: string, search: boolean, loc: Loc) {
+async function geminiCall(model: string, text: string, search: boolean) {
   return postJson<GeminiResponse>(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
-      contents: [{ role: "user", parts: [{ text: search ? prompt : `I'm in ${where(loc)}. ${prompt}` }] }],
+      contents: [{ role: "user", parts: [{ text }] }],
       ...(search ? { tools: [{ google_search: {} }] } : {}),
     },
     { "x-goog-api-key": env.gemini! },
   );
 }
 
+/**
+ * Without Google Search grounding, Gemini answers local questions from memory and names a
+ * different list from the Gemini app, which searches live. So we give it what the app sees for
+ * local questions: the live Google Maps results for that exact question, in Google's order.
+ */
+async function mapsGroundedPrompt(prompt: string, loc: Loc): Promise<{ text: string; listings: LocalListing[] } | null> {
+  if (!env.googlePlaces) return null;
+  // No map bias: the city is in the question, and biasing to the CBD reorders results away from what people see.
+  const listings = await searchLocal(prompt, { country: loc.country }, 8).catch(() => []);
+  if (!listings.length) return null;
+  const lines = listings.map((l, i) =>
+    [
+      `${i + 1}. ${l.name}`,
+      l.rating ? `${l.rating.toFixed(1)} stars from ${l.reviews} Google reviews` : "no Google rating yet",
+      l.address,
+      l.website ? `website ${hostOf(l.website)}` : null,
+      l.summary,
+    ]
+      .filter(Boolean)
+      .join(" | "),
+  );
+  const text = [
+    `I'm in ${where(loc)}. ${prompt}`,
+    "",
+    "Live Google Maps results for this search, in Google's ranking order:",
+    ...lines,
+    "",
+    "Answer the way Gemini answers a local search: recommend 3 to 5 specific businesses, strongest first, with one line on why each stands out. Base it on these Google Maps results (ranking, star rating and number of reviews) plus anything you reliably know. Bold each business name, written exactly as listed.",
+  ].join("\n");
+  return { text, listings };
+}
+
+/** The listings the answer actually named, so citations point only at businesses that were recommended. */
+function namedListings(answer: string, listings: LocalListing[]) {
+  const a = ` ${norm(answer)} `;
+  return listings
+    .filter((l) => {
+      const core = coreName(l.name);
+      return a.includes(` ${norm(l.name)} `) || (core.length >= 5 && a.includes(` ${core} `));
+    })
+    .map((l) => ({ url: l.website ?? l.mapsUrl ?? "", title: l.name }))
+    .filter((c) => c.url);
+}
+
 async function askGemini(prompt: string, loc: Loc): Promise<EngineReply> {
   let json: GeminiResponse | null = null;
-  let grounded = !geminiSearchBlocked;
+  let grounding: Grounding = geminiSearchBlocked ? "none" : "web";
+  let maps: Awaited<ReturnType<typeof mapsGroundedPrompt>> = null;
   const models = [...new Set([env.geminiModel, ...GEMINI_FALLBACK_MODELS])];
   for (const [i, model] of models.entries()) {
     try {
-      if (grounded) {
+      if (grounding === "web") {
         try {
-          json = await geminiCall(model, prompt, true, loc);
+          json = await geminiCall(model, prompt, true);
         } catch (e) {
           if (httpStatus(e) !== 429) throw e;
           geminiSearchBlocked = true;
-          grounded = false;
+          grounding = "none";
         }
       }
-      json ??= await geminiCall(model, prompt, false, loc);
+      if (!json) {
+        maps ??= await mapsGroundedPrompt(prompt, loc);
+        if (maps) grounding = "maps";
+        json = await geminiCall(model, maps?.text ?? `I'm in ${where(loc)}. ${prompt}`, false);
+      }
       break;
     } catch (e) {
       const busy = httpStatus(e) === 429 || httpStatus(e) === 503;
@@ -144,10 +197,11 @@ async function askGemini(prompt: string, loc: Loc): Promise<EngineReply> {
   }
   const cand = json?.candidates?.[0];
   const answer = (cand?.content?.parts ?? []).map((p) => p.text ?? "").join("");
-  const citations = (cand?.groundingMetadata?.groundingChunks ?? [])
-    .map((g) => ({ url: g.web?.uri ?? "", title: g.web?.title }))
-    .filter((c) => c.url);
-  return { answer, citations, grounded };
+  const citations =
+    grounding === "maps" && maps
+      ? namedListings(answer, maps.listings)
+      : (cand?.groundingMetadata?.groundingChunks ?? []).map((g) => ({ url: g.web?.uri ?? "", title: g.web?.title })).filter((c) => c.url);
+  return { answer, citations, grounded: grounding !== "none", grounding };
 }
 
 /* ---------- Perplexity: Sonar chat completions ---------- */

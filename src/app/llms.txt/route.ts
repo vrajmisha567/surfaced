@@ -9,7 +9,7 @@ export function GET() {
     `> ${site.description}`,
     "",
     "## What we do",
-    "- Free AI visibility audit: checks whether ChatGPT, Gemini, Perplexity and Claude name a business for local questions, and scores six site factors.",
+    "- Free AI visibility audit: checks whether ChatGPT, Gemini, Perplexity and Claude name a business for local questions, checks the business's Google Maps rank and reviews, and scores five site factors.",
     "- Fix Pack: installs LocalBusiness schema, FAQ answers, llms.txt, AI crawler access and directory listings.",
     "- Weekly tracking: re-asks the same questions and reports share of voice against local competitors.",
     "",

@@ -24,12 +24,28 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 5);
 
+  const local = r.local;
+  const where = shortPlace(placeOf(r.input));
+  const mapsPart = !local
+    ? null
+    : local.rank
+      ? `ranks #${local.rank} on Google Maps for “${local.query}”`
+      : local.found
+        ? `isn't in the Google Maps top 20 for “${local.query}”`
+        : "has no Google Maps listing we could match to this name and website";
+  const aiPart = !ran
+    ? null
+    : hits.length
+      ? `was named in ${hits.length} of ${ok.length} AI answers`
+      : `wasn't named in any of ${ok.length} AI answers about ${cat.plural.toLowerCase()} in ${where}`;
+  const rival = r.ai.topRivals[0];
   const verdict =
-    ran && hits.length === 0
-      ? `${r.input.businessName} wasn't named in any of ${ok.length} AI answers to questions locals ask about ${cat.plural.toLowerCase()} in ${shortPlace(placeOf(r.input))}.`
-      : ran
-        ? `${r.input.businessName} was named in ${hits.length} of ${ok.length} AI answers. ${r.ai.topRivals[0] ? `${r.ai.topRivals[0].name} was named ${r.ai.topRivals[0].count} times.` : ""}`
-        : `Your site scores ${r.overall}/100 on the factors AI engines use to decide which ${cat.plural.toLowerCase()} to recommend.`;
+    mapsPart || aiPart
+      ? `${r.input.businessName} ${[mapsPart, aiPart].filter(Boolean).join(", and ")}.${rival && hits.length < ok.length / 2 ? ` ${rival.name} was named ${rival.count} time${rival.count === 1 ? "" : "s"}.` : ""}`
+      : `Your site scores ${r.overall}/100 on the factors AI engines use to decide which ${cat.plural.toLowerCase()} to recommend.`;
+  const split = r.visibility !== undefined;
+  let section = 0;
+  const next = () => String(++section).padStart(2, "0");
 
   return (
     <div className="space-y-8">
@@ -50,17 +66,32 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
           </div>
         </div>
         <div className="grid grid-cols-2 border-t border-line md:grid-cols-4 md:divide-x md:divide-line">
-          <Stat label="Overall grade" value={`${r.grade} · ${scoreWord(r.overall)}`} />
-          <Stat label="Named by AI" value={ran ? `${hits.length} / ${ok.length}` : r.ai.measured ? "No reply" : "Not run"} />
-          <Stat label="Engines checked" value={r.ai.measured ? r.ai.engines.map((e) => engineName[e]).join(", ") : "—"} small />
-          <Stat label="Most-named rival" value={r.ai.topRivals[0]?.name ?? "—"} small />
+          {split ? (
+            <>
+              <Stat label="Visible now" value={r.visibility == null ? "—" : `${r.visibility}/100`} hint="AI answers + Google Maps" />
+              <Stat label="Site readiness" value={r.readiness == null ? "—" : `${r.readiness}/100`} hint="What keeps you there" />
+              <Stat label="Named by AI" value={ran ? `${hits.length} / ${ok.length}` : r.ai.measured ? "No reply" : "Not run"} />
+              <Stat label="Google Maps" value={!local ? "—" : local.rank ? `#${local.rank}` : local.found ? "Not top 20" : "No listing"} />
+            </>
+          ) : (
+            <>
+              <Stat label="Overall grade" value={`${r.grade} · ${scoreWord(r.overall)}`} />
+              <Stat label="Named by AI" value={ran ? `${hits.length} / ${ok.length}` : r.ai.measured ? "No reply" : "Not run"} />
+              <Stat label="Engines checked" value={r.ai.measured ? r.ai.engines.map((e) => engineName[e]).join(", ") : "—"} small />
+              <Stat label="Most-named rival" value={r.ai.topRivals[0]?.name ?? "—"} small />
+            </>
+          )}
         </div>
       </Card>
 
       {/* AI answers */}
       {r.ai.measured && (
         <section>
-          <SectionHead n="01" title="What AI assistants said" sub="We asked each engine the questions locals type. Named = your business appeared in the answer." />
+          <SectionHead
+            n={next()}
+            title="What AI assistants said"
+            sub={`We asked ${r.ai.engines.map((e) => engineName[e]).join(", ")} the questions people type. Named = your business appeared in the answer.`}
+          />
           <Card className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
@@ -94,7 +125,13 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
               </tbody>
             </table>
           </Card>
-          {ok.some((a) => a.grounded === false) && (
+          {ok.some((a) => a.grounding === "maps") && (
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              Gemini answered each question from the live Google Maps results for it, the same local data the Gemini app leans on for
+              “best {cat.label.toLowerCase()} in {placeOf(r.input).city}” questions. Answers can still vary a little each time they're asked.
+            </p>
+          )}
+          {ok.some((a) => a.grounded === false && a.grounding !== "maps") && (
             <p className="mt-3 text-xs leading-relaxed text-muted">
               Some answers came from the engine's own knowledge, without a live web search. They show what the model already
               believes about local {cat.plural.toLowerCase()}, which can lag behind recent changes to your site.
@@ -136,10 +173,56 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
         </section>
       )}
 
+      {/* Google Maps */}
+      {local && (
+        <section>
+          <SectionHead n={next()} title="Google Maps" sub={`What Google shows for “${local.query}”. Gemini and Google's AI lean on this for local questions.`} />
+          <Card className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left">
+                  <th className="label px-5 py-3 font-normal">Rank</th>
+                  <th className="label px-3 py-3 font-normal">Business</th>
+                  <th className="label px-3 py-3 text-right font-normal">Rating</th>
+                  <th className="label px-5 py-3 text-right font-normal">Reviews</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {local.leaders.map((l, i) => {
+                  const you = local.rank === i + 1;
+                  return (
+                    <tr key={l.name} className={you ? "bg-good-soft" : ""}>
+                      <td className="px-5 py-3 font-mono text-muted">#{i + 1}</td>
+                      <td className="px-3 py-3">
+                        {l.name}
+                        {you && <span className="label ml-2 text-good">You</span>}
+                      </td>
+                      <td className="tabular px-3 py-3 text-right">{l.rating ? l.rating.toFixed(1) : "—"}</td>
+                      <td className="tabular px-5 py-3 text-right">{l.reviews.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+                {!(local.rank && local.rank <= 3) && (
+                  <tr className="bg-paper">
+                    <td className="px-5 py-3 font-mono text-muted">{local.rank ? `#${local.rank}` : "—"}</td>
+                    <td className="px-3 py-3">
+                      {local.name ?? r.input.businessName}
+                      <span className="label ml-2">You{local.found ? (local.rank ? "" : " · not in top 20") : " · no listing found"}</span>
+                    </td>
+                    <td className="tabular px-3 py-3 text-right">{local.rating ? local.rating.toFixed(1) : "—"}</td>
+                    <td className="tabular px-5 py-3 text-right">{(local.reviews ?? 0).toLocaleString()}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Card>
+        </section>
+      )}
+
       {/* Priority fixes */}
       {priority.length > 0 && (
         <section>
-          <SectionHead n={r.ai.measured ? "02" : "01"} title="Fix these first" sub="Ranked by how much each one affects whether AI engines can find and trust you." />
+          <SectionHead n={next()} title="Fix these first" sub="Ranked by how much each one affects whether AI engines can find and trust you." />
           <Card className="divide-y divide-line">
             {priority.map((c, i) => (
               <div key={c.id} className="grid grid-cols-[2rem_1fr] gap-3 px-5 py-4 sm:grid-cols-[2rem_1fr_10rem]">
@@ -157,7 +240,15 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
 
       {/* Pillars */}
       <section>
-        <SectionHead n={r.ai.measured ? "03" : "02"} title="Every check, by area" sub="Six areas, weighted by how much they matter to AI recommendations." />
+        <SectionHead
+          n={next()}
+          title="Every check, by area"
+          sub={
+            split
+              ? "Visible now = AI answers and Google Maps (75% of your score). Site readiness = the five site areas that keep you there (25%)."
+              : "Each area is weighted by how much it matters to AI recommendations."
+          }
+        />
         <div className="grid gap-4 lg:grid-cols-2">
           {r.pillars.map((p) => (
             <Card key={p.key} className="p-5">
@@ -188,11 +279,12 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
   );
 }
 
-function Stat({ label, value, small }: { label: string; value: string; small?: boolean }) {
+function Stat({ label, value, small, hint }: { label: string; value: string; small?: boolean; hint?: string }) {
   return (
     <div className="px-6 py-4">
       <Label>{label}</Label>
       <div className={`mt-1.5 font-semibold ${small ? "text-sm" : "tabular text-lg"}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-muted">{hint}</div>}
     </div>
   );
 }

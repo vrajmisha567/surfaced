@@ -7,7 +7,8 @@ import { rivalsFrom, runMatrix } from "@/lib/ai/visibility";
 import { fetchPage, normaliseUrl } from "./fetch";
 import { extract } from "./extract";
 import { checkCrawlers } from "./robots";
-import { gradeFor, overallScore, pillarMeta, scoreAi, scoreContent, scoreCrawl, scoreEntity, scoreNap, scoreSchema } from "./score";
+import { gradeFor, pillarMeta, scoreAi, scoreContent, scoreCrawl, scoreEntity, scoreLocal, scoreNap, scoreSchema, scoreSummary } from "./score";
+import { checkLocal } from "./local";
 
 export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {}): Promise<AuditResult> {
   const t0 = Date.now();
@@ -19,15 +20,24 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
   const prompts = promptsFor(input.category, place, opts.aiPrompts ?? 3);
   const measured = engines.length > 0;
 
-  const [page, crawler, answers] = await Promise.all([
+  // Google Maps first (one or two quick lookups): it tells the AI step the business's listing name,
+  // so "Kinetic Rehab" typed in the form still matches "Kinetic Rehabilitation + Performance" in answers.
+  const localAndAnswers = (async () => {
+    const local = await checkLocal({ name: input.businessName, website: url, category: input.category }, place);
+    const aliases = local?.found && local.name ? [local.name] : [];
+    const answers = measured
+      ? await runMatrix(engines, prompts, { name: input.businessName, website: url, aliases }, input.competitors ?? [], place)
+      : [];
+    return { local, answers };
+  })();
+
+  const [page, crawler, { local, answers }] = await Promise.all([
     fetchPage(url).catch((e: unknown) => e as Error),
     checkCrawlers(url).catch(() => null),
-    measured
-      ? runMatrix(engines, prompts, { name: input.businessName, website: url }, input.competitors ?? [], place)
-      : Promise.resolve([]),
+    localAndAnswers,
   ]);
 
-  const pillars: Pillar[] = [scoreAi(answers, measured)];
+  const pillars: Pillar[] = [scoreAi(answers, measured), scoreLocal(local)];
   let extracted = null;
   let fetchError: string | undefined;
 
@@ -58,10 +68,13 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
   }
 
   const ok = answers.filter((a) => !a.error);
-  const overall = overallScore(pillars);
+  const { overall, visibility, readiness } = scoreSummary(pillars);
   return {
     input,
     overall,
+    visibility,
+    readiness,
+    local,
     grade: gradeFor(overall),
     pillars,
     extracted,

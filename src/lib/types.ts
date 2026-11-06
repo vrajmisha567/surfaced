@@ -10,7 +10,23 @@ export type Check = {
   weight: number;
 };
 
-export type PillarKey = "ai" | "schema" | "nap" | "content" | "entity" | "crawl";
+export type PillarKey = "ai" | "local" | "schema" | "nap" | "content" | "entity" | "crawl";
+
+/** Where the business stands on Google Maps for its main search. */
+export type LocalPresence = {
+  query: string;
+  /** 1-based position in Google Maps results for the query, or null if not in the top 20. */
+  rank: number | null;
+  found: boolean;
+  name?: string;
+  rating?: number | null;
+  reviews?: number;
+  hasWebsite?: boolean;
+  hasHours?: boolean;
+  mapsUrl?: string | null;
+  /** The top three on Maps for the query, for comparison. */
+  leaders: { name: string; rating: number | null; reviews: number }[];
+};
 
 export type Pillar = {
   key: PillarKey;
@@ -36,6 +52,8 @@ export type EngineAnswer = {
   competitorsMentioned: string[];
   /** False when the engine answered from its own knowledge without live web search. */
   grounded?: boolean;
+  /** web = live web search, maps = live Google Maps results, none = model memory. */
+  grounding?: "web" | "maps" | "none";
   error?: string;
   ms?: number;
 };
@@ -113,6 +131,11 @@ export type AuditResult = {
     mentionRate: number | null;
     topRivals: { name: string; count: number }[];
   };
+  /** Google Maps standing for the main search. Missing on older audits or without a Places key. */
+  local?: LocalPresence | null;
+  /** Headline split (newer audits): how visible the business is now, and how ready its site is. */
+  visibility?: number | null;
+  readiness?: number | null;
   fetchError?: string;
   ranAt: string;
   durationMs: number;
