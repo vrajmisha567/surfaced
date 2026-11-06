@@ -2,12 +2,18 @@ import { ArrowRight, Check, Minus } from "lucide-react";
 import { AnswerCard } from "@/components/answer-card";
 import { AuditForm } from "@/components/audit-form";
 import { BorderBeam, NumberTicker, Reveal, RevealWords, SampleScores, SpotlightCard, TextRotate } from "@/components/fx";
+import { OpenSection, StatsSection } from "@/components/live-sections";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Card, Label, LinkButton } from "@/components/ui";
 import { categories, getCategory, promptsFor } from "@/lib/categories";
 import { countryOptions, type Place } from "@/lib/locale";
 import { pillarMeta } from "@/lib/audit/score";
+import { getRevenue } from "@/lib/revenue";
 import { plans, site } from "@/lib/site";
+import { getAuditStats } from "@/lib/stats";
+
+/** The live stats and revenue sections refresh hourly. */
+export const revalidate = 3600;
 
 const faqs = [
   {
@@ -90,7 +96,8 @@ function Ticker() {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const [stats, revenue] = await Promise.all([getAuditStats(), getRevenue()]);
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -367,6 +374,9 @@ export default function Home() {
           </div>
         </section>
 
+        {/* LIVE STATS */}
+        <StatsSection s={stats} />
+
         {/* PRICING */}
         <section id="pricing" className="mx-auto max-w-6xl px-5 py-24">
           <Reveal>
@@ -424,6 +434,11 @@ export default function Home() {
             </div>
           </Reveal>
         </section>
+
+        {/* OPEN REVENUE */}
+        <div className="border-t border-line">
+          <OpenSection rev={revenue} />
+        </div>
 
         {/* HONESTY */}
         <section className="relative overflow-hidden border-y border-line bg-night text-white">

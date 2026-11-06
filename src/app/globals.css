@@ -41,6 +41,8 @@ html {
 }
 
 body {
+  /* Decorative glows and beams must never widen the page on phones. */
+  overflow-x: clip;
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;

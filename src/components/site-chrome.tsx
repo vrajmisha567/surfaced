@@ -11,7 +11,7 @@ export function SiteHeader() {
           <Link href="/#how" className="hover:text-ink">How it works</Link>
           <Link href="/#checks" className="hover:text-ink">What we check</Link>
           <Link href="/#pricing" className="hover:text-ink">Pricing</Link>
-          <Link href="/stats" className="hover:text-ink">Stats</Link>
+          <Link href="/#stats" className="hover:text-ink">Stats</Link>
           <Link href="/#faq" className="hover:text-ink">FAQ</Link>
         </nav>
         <div className="flex items-center gap-2">
@@ -36,8 +36,8 @@ export function SiteFooter() {
           <ul className="space-y-2 text-ink-2">
             <li><Link href="/#audit" className="hover:text-ink">Free audit</Link></li>
             <li><Link href="/#pricing" className="hover:text-ink">Pricing</Link></li>
-            <li><Link href="/stats" className="hover:text-ink">AI visibility stats</Link></li>
-            <li><Link href="/open" className="hover:text-ink">Open revenue</Link></li>
+            <li><Link href="/#stats" className="hover:text-ink">AI visibility stats</Link></li>
+            <li><Link href="/#open" className="hover:text-ink">Open revenue</Link></li>
             <li><Link href="/llms.txt" className="hover:text-ink">llms.txt</Link></li>
           </ul>
         </div>
