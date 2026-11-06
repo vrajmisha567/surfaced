@@ -244,3 +244,22 @@ export type TrackerRun = {
   citations: { url: string; title?: string }[];
   error: string | null;
 };
+
+/** The few fields of an audit the public stats page needs. */
+export type AuditSummary = {
+  created_at: string;
+  category: string;
+  city: string;
+  country: string;
+  /** Used only to count distinct businesses; never shown. */
+  business_name: string;
+  overall_score: number;
+  visibility: number | null;
+  readiness: number | null;
+  pillars: Pillar[] | null;
+  mentionRate: number | null;
+  aiMeasured: boolean | null;
+  top3: number | null;
+  spots: number | null;
+  mapsRank: number | null;
+};

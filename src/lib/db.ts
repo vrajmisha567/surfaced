@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { env } from "@/lib/env";
-import type { AuditRecord, Client, Prospect, TrackerRun } from "@/lib/types";
+import type { AuditRecord, AuditSummary, Client, Prospect, TrackerRun } from "@/lib/types";
 
 /**
  * Storage. Uses Supabase when SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set,
@@ -152,6 +152,38 @@ export const db = {
     get: (id: string) => get("audits", id),
     create: (row: Omit<AuditRecord, "id" | "created_at">) => insert("audits", row),
     forClient: (clientId: string) => list("audits", { where: { client_id: clientId }, order: "created_at", desc: false }),
+    /** Slim rows for the public stats page: no answers, page text or contact details. */
+    summaries: async (limit = 5000): Promise<AuditSummary[]> => {
+      const s = supabase();
+      if (s) {
+        const { data, error } = await s
+          .from("audits")
+          .select(
+            "created_at,category,city,country,business_name,overall_score,visibility:result->visibility,readiness:result->readiness,pillars:result->pillars,mentionRate:result->ai->mentionRate,aiMeasured:result->ai->measured,top3:result->local->top3,spots:result->local->spots,mapsRank:result->local->rank",
+          )
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error) throw new Error(`audits.summaries: ${error.message}`);
+        return (data ?? []) as unknown as AuditSummary[];
+      }
+      const rows = await list("audits", { limit });
+      return rows.map((r) => ({
+        created_at: r.created_at,
+        category: r.category,
+        city: r.city,
+        country: r.country,
+        business_name: r.business_name,
+        overall_score: r.overall_score,
+        visibility: r.result.visibility ?? null,
+        readiness: r.result.readiness ?? null,
+        pillars: r.result.pillars,
+        mentionRate: r.result.ai?.mentionRate ?? null,
+        aiMeasured: r.result.ai?.measured ?? false,
+        top3: r.result.local?.top3 ?? null,
+        spots: r.result.local?.spots ?? null,
+        mapsRank: r.result.local?.rank ?? null,
+      }));
+    },
   },
   prospects: {
     list: () => list("prospects", { limit: 500 }),
