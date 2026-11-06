@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="5 6 38 38">
+  <style>
+    .t { stroke: #13855f; }
+    .b { stroke: #101828; }
+    @media (prefers-color-scheme: dark) {
+      .t { stroke: #5fd3a5; }
+      .b { stroke: #ffffff; }
+    }
+  </style>
+  <path class="t" d="M19 23A10 10 0 0 1 39 23" fill="none" stroke-width="7" stroke-linecap="round"/>
+  <path class="b" d="M9 27A10 10 0 0 0 29 27" fill="none" stroke-width="7" stroke-linecap="round"/>
+</svg>

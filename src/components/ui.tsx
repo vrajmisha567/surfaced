@@ -3,16 +3,31 @@ import clsx from "clsx";
 import { Check as CheckIcon, AlertTriangle, X, Info } from "lucide-react";
 import type { CheckStatus } from "@/lib/types";
 
+/**
+ * The Surfaced "Wave" mark: an S drawn as a wave, the green half riding above the surface.
+ * Geometry lives in a 48×48 box; keep it in sync with src/app/icon.svg and public/brand/.
+ */
+export const WAVE_TOP = "M19 23A10 10 0 0 1 39 23";
+export const WAVE_BOTTOM = "M9 27A10 10 0 0 0 29 27";
+
+export function Mark({ size = 24, dark, className }: { size?: number; dark?: boolean; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 1 48 48" aria-hidden className={className}>
+      <path d={WAVE_TOP} fill="none" stroke={dark ? "#5fd3a5" : "#13855f"} strokeWidth="7" strokeLinecap="round" />
+      <path d={WAVE_BOTTOM} fill="none" stroke={dark ? "#ffffff" : "#101828"} strokeWidth="7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function Logo({ className, dark }: { className?: string; dark?: boolean }) {
   return (
-    <Link href="/" className={clsx("inline-flex items-center gap-2 font-semibold tracking-tight", dark ? "text-white" : "text-ink", className)}>
-      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden>
-        <rect x="1" y="1" width="20" height="20" rx="5" className={dark ? "fill-white" : "fill-ink"} />
-        <path d="M5 14.5h12" stroke="#13855f" strokeWidth="2.2" strokeLinecap="round" />
-        <path d="M7.5 10.5h7" className={dark ? "stroke-night" : "stroke-white"} strokeWidth="2.2" strokeLinecap="round" opacity=".55" />
-        <path d="M9.5 6.5h3" className={dark ? "stroke-night" : "stroke-white"} strokeWidth="2.2" strokeLinecap="round" opacity=".3" />
-      </svg>
-      <span className="text-[17px]">Surfaced</span>
+    <Link
+      href="/"
+      aria-label="Surfaced home"
+      className={clsx("group inline-flex items-center gap-1.5 font-semibold", dark ? "text-white" : "text-ink", className)}
+    >
+      <Mark size={28} dark={dark} className="transition-transform duration-500 group-hover:-translate-y-px" />
+      <span className="text-[19px] leading-none tracking-[-0.045em]">surfaced</span>
     </Link>
   );
 }
