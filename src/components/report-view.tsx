@@ -15,7 +15,9 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
       return r.input.url;
     }
   })();
-  const ok = r.ai.answers.filter((a) => !a.error);
+  const replied = r.ai.answers.filter((a) => !a.error);
+  // Answers from model memory are shown but not counted (see scoreAi).
+  const ok = r.ai.answers.filter((a) => !a.error && a.grounding !== "none");
   const hits = ok.filter((a) => a.mentioned);
   // Engines were on but none answered (outage, no credits): report it as not run, not as "0 of 0".
   const ran = r.ai.measured && ok.length > 0;
@@ -26,13 +28,17 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
 
   const local = r.local;
   const where = shortPlace(placeOf(r.input));
+  const city = placeOf(r.input).city;
+  const hasGrid = !!local?.spots;
   const mapsPart = !local
     ? null
-    : local.rank
-      ? `ranks #${local.rank} on Google Maps for “${local.query}”`
-      : local.found
-        ? `isn't in the Google Maps top 20 for “${local.query}”`
-        : "has no Google Maps listing we could match to this name and website";
+    : !local.found
+      ? "has no Google Maps listing we could match to this name and website"
+      : hasGrid
+        ? `is in the Google Maps top 3 for “${local.query}” from ${local.top3} of ${local.spots} spots across ${city}`
+        : local.rank
+          ? `ranks #${local.rank} on Google Maps for “${local.query}”`
+          : `isn't in the Google Maps top 20 for “${local.query}”`;
   const aiPart = !ran
     ? null
     : hits.length
@@ -71,7 +77,11 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
               <Stat label="Visible now" value={r.visibility == null ? "—" : `${r.visibility}/100`} hint="AI answers + Google Maps" />
               <Stat label="Site readiness" value={r.readiness == null ? "—" : `${r.readiness}/100`} hint="What keeps you there" />
               <Stat label="Named by AI" value={ran ? `${hits.length} / ${ok.length}` : r.ai.measured ? "No reply" : "Not run"} />
-              <Stat label="Google Maps" value={!local ? "—" : local.rank ? `#${local.rank}` : local.found ? "Not top 20" : "No listing"} />
+              <Stat
+                label="Google Maps top 3"
+                value={!local ? "—" : !local.found ? "No listing" : hasGrid ? `${local.top3} of ${local.spots} spots` : local.rank ? `#${local.rank}` : "Not top 20"}
+                hint={hasGrid ? `Across ${city}` : undefined}
+              />
             </>
           ) : (
             <>
@@ -112,6 +122,10 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
                         <td key={e} className="px-3 py-3.5 text-center">
                           {!a || a.error ? (
                             <span className="inline-flex items-center gap-1 text-xs text-muted" title={a?.error}><Minus size={13} /> No reply</span>
+                          ) : a.grounding === "none" ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-muted" title="Answered from memory, not scored">
+                              <Minus size={13} /> {a.mentioned ? "Named (memory)" : "Memory only"}
+                            </span>
                           ) : a.mentioned ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-good-soft px-1.5 py-0.5 text-xs font-medium text-good"><Check size={13} /> Named{a.position ? ` #${a.position}` : ""}</span>
                           ) : (
@@ -131,15 +145,16 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
               “best {cat.label.toLowerCase()} in {placeOf(r.input).city}” questions. Answers can still vary a little each time they're asked.
             </p>
           )}
-          {ok.some((a) => a.grounded === false && a.grounding !== "maps") && (
+          {replied.some((a) => a.grounded === false && a.grounding !== "maps") && (
             <p className="mt-3 text-xs leading-relaxed text-muted">
-              Some answers came from the engine's own knowledge, without a live web search. They show what the model already
-              believes about local {cat.plural.toLowerCase()}, which can lag behind recent changes to your site.
+              {split
+                ? "Answers marked “memory” came from the AI's own knowledge, because it couldn't search the web or Google Maps at the time. They often differ from what the real assistant says, so they're shown for reference and not scored."
+                : `Some answers came from the engine's own knowledge, without a live web search. They show what the model already believes about local ${cat.plural.toLowerCase()}, which can lag behind recent changes to your site.`}
             </p>
           )}
 
           <div className="mt-4 grid gap-3">
-            {ok.slice(0, 12).map((a, i) => (
+            {replied.slice(0, 12).map((a, i) => (
               <details key={i} className="group rounded-xl border border-line bg-card">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5 text-sm">
                   <span className="flex min-w-0 items-center gap-3">
@@ -176,12 +191,41 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
       {/* Google Maps */}
       {local && (
         <section>
-          <SectionHead n={next()} title="Google Maps" sub={`What Google shows for “${local.query}”. Gemini and Google's AI lean on this for local questions.`} />
+          <SectionHead
+            n={next()}
+            title="Google Maps"
+            sub={`Where you rank for “${local.query}”. Gemini and Google's AI lean on this for local questions, and it changes with where the searcher is.`}
+          />
+          {hasGrid && local.grid && (
+            <Card className="mb-3 p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="font-medium">Your rank from {local.spots} spots across {city}</div>
+                <div className="label">Same search, different searcher location</div>
+              </div>
+              <div className="mt-4 grid grid-cols-5 gap-2">
+                {local.grid.map((g) => (
+                  <div
+                    key={g.label}
+                    className={`rounded-lg border px-2 py-3 text-center ${!g.checked ? "border-line bg-paper text-faint" : g.rank !== null && g.rank <= 3 ? "border-good/30 bg-good-soft" : g.rank !== null && g.rank <= 10 ? "border-warn/30 bg-warn-soft" : "border-line bg-paper"}`}
+                  >
+                    <div className="tabular text-lg font-semibold">{!g.checked ? "?" : g.rank ? `#${g.rank}` : "20+"}</div>
+                    <div className="label mt-0.5">{g.label}</div>
+                  </div>
+                ))}
+              </div>
+              {local.nearYou != null && (
+                <p className="mt-4 text-sm text-ink-2">
+                  Searching from right next to your business, you're <strong>#{local.nearYou}</strong>. That's what you'll see on your own
+                  phone in the shop{local.nearYou <= 3 && (local.top3 ?? 0) < (local.spots ?? 0) ? ", but customers across town see a different list" : ""}.
+                </p>
+              )}
+            </Card>
+          )}
           <Card className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left">
-                  <th className="label px-5 py-3 font-normal">Rank</th>
+                  <th className="label px-5 py-3 font-normal">{hasGrid ? "From the centre" : "Rank"}</th>
                   <th className="label px-3 py-3 font-normal">Business</th>
                   <th className="label px-3 py-3 text-right font-normal">Rating</th>
                   <th className="label px-5 py-3 text-right font-normal">Reviews</th>

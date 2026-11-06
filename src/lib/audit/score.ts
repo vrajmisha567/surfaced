@@ -214,7 +214,27 @@ export function scoreCrawl(x: Extracted, cr: CrawlerAccess): Pillar {
 }
 
 export function scoreAi(answers: EngineAnswer[], measured: boolean): Pillar {
-  const ok = answers.filter((a) => !a.error);
+  // Only answers backed by a live search (web or Google Maps) are scored. From memory, a model names
+  // a different list from the real assistant, so scoring it would mislead (top-3 businesses scored 19).
+  const replied = answers.filter((a) => !a.error);
+  const ok = replied.filter((a) => a.grounding !== "none");
+  if (measured && replied.length && !ok.length) {
+    return {
+      key: "ai",
+      ...pillarMeta.ai,
+      score: null,
+      checks: [
+        {
+          id: "ai-memory-only",
+          label: "Live AI checks",
+          status: "info",
+          detail:
+            "The AI couldn't search the web or Google Maps for this audit, so it answered from memory. Those answers are shown for reference but not scored, because they often differ from what the real assistant says.",
+          weight: 0,
+        },
+      ],
+    };
+  }
   // Every engine call failed (bad key, no credits, outage): don't score the business 0 for our problem.
   if (!measured || !ok.length) {
     return {
@@ -288,13 +308,13 @@ export function overallScore(pillars: Pillar[]) {
   return scoreSummary(pillars).overall;
 }
 
-export function scoreLocal(l: LocalPresence | null): Pillar {
+export function scoreLocal(l: LocalPresence | null, error?: string): Pillar {
   const base = { key: "local" as const, ...pillarMeta.local };
   if (!l) {
     return {
       ...base,
       score: null,
-      checks: [{ id: "local-unmeasured", label: "Google Maps checks", status: "info", detail: "Google Maps couldn't be checked for this audit.", weight: 0 }],
+      checks: [{ id: "local-unmeasured", label: "Google Maps checks", status: "info", detail: `Google Maps couldn't be checked for this audit${error ? `: ${error.replace(/\.$/, "").toLowerCase()}` : ""}. Your score uses the other areas.`, weight: 0 }],
     };
   }
   const q = `"${l.query}"`;
@@ -302,10 +322,20 @@ export function scoreLocal(l: LocalPresence | null): Pillar {
   const leaderReviews = l.leaders.length ? Math.min(...l.leaders.map((x) => x.reviews)) : 100;
   const rating = l.rating ?? 0;
   const reviews = l.reviews ?? 0;
+  // Newer audits rank from nine spots across the city; older ones from a single search.
+  const spots = l.spots ?? 0;
+  const share = spots ? (l.top3 ?? 0) / spots : null;
+  const ranked = (l.grid ?? []).filter((g) => g.rank !== null).length;
+  const rankCheck =
+    share !== null
+      ? c("local-rank", "Top 3 on Google Maps across the city", share >= 0.6 ? true : share > 0 || ranked >= Math.ceil(spots / 2) ? "warn" : false, 4,
+          `Top 3 for ${q} from ${l.top3} of ${spots} spots across the city${ranked > (l.top3 ?? 0) ? `, top 20 from ${ranked}` : ""}.${share < 0.6 && leaders ? ` From the centre, the top 3 are ${leaders}.` : ""}`,
+          "Climb the Maps results across the city, not just near your address: complete every field of your Google Business Profile, choose the most specific primary category, add every suburb you serve, and keep earning reviews that mention the service and suburb.")
+      : c("local-rank", "Ranks on Google Maps", l.rank !== null && l.rank <= 3 ? true : l.rank !== null && l.rank <= 10 ? "warn" : false, 4,
+          l.rank !== null ? `#${l.rank} on Google Maps for ${q}.` : `Not in the top 20 on Google Maps for ${q}.${leaders ? ` The top 3 are ${leaders}.` : ""}`,
+          "Climb the Maps results: complete every field of your Google Business Profile, choose the most specific primary category, and keep earning reviews that mention the service and suburb.");
   const checks: Check[] = [
-    c("local-rank", "Ranks on Google Maps", l.rank !== null && l.rank <= 3 ? true : l.rank !== null && l.rank <= 10 ? "warn" : false, 4,
-      l.rank !== null ? `#${l.rank} on Google Maps for ${q}.` : `Not in the top 20 on Google Maps for ${q}.${leaders ? ` The top 3 are ${leaders}.` : ""}`,
-      "Climb the Maps results: complete every field of your Google Business Profile, choose the most specific primary category, and keep earning reviews that mention the service and suburb."),
+    rankCheck,
     c("local-profile", "Google Business Profile found", l.found, 1,
       l.found ? `Found "${l.name}" on Google Maps.` : "No Google Maps listing matched this business name and website.",
       "Claim and verify your Google Business Profile, using exactly the same name and website as your site."),

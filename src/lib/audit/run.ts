@@ -23,21 +23,22 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
   // Google Maps first (one or two quick lookups): it tells the AI step the business's listing name,
   // so "Kinetic Rehab" typed in the form still matches "Kinetic Rehabilitation + Performance" in answers.
   const localAndAnswers = (async () => {
-    const local = await checkLocal({ name: input.businessName, website: url, category: input.category }, place);
+    const check = await checkLocal({ name: input.businessName, website: url, category: input.category }, place);
+    const local = check.presence;
     const aliases = local?.found && local.name ? [local.name] : [];
     const answers = measured
-      ? await runMatrix(engines, prompts, { name: input.businessName, website: url, aliases }, input.competitors ?? [], place)
+      ? await runMatrix(engines, prompts, { name: input.businessName, website: url, aliases }, input.competitors ?? [], place, check.centre)
       : [];
-    return { local, answers };
+    return { local, localError: check.error, answers };
   })();
 
-  const [page, crawler, { local, answers }] = await Promise.all([
+  const [page, crawler, { local, localError, answers }] = await Promise.all([
     fetchPage(url).catch((e: unknown) => e as Error),
     checkCrawlers(url).catch(() => null),
     localAndAnswers,
   ]);
 
-  const pillars: Pillar[] = [scoreAi(answers, measured), scoreLocal(local)];
+  const pillars: Pillar[] = [scoreAi(answers, measured), scoreLocal(local, localError)];
   let extracted = null;
   let fetchError: string | undefined;
 

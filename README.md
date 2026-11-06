@@ -23,8 +23,8 @@ It runs as a small agency in a box: a public audit tool that generates leads, a 
 The headline score is **75% "visible now" + 25% "site readiness"**, so a business that AI already names in the top 3 scores high, and the report still shows what would keep it there.
 
 **Visible now**
-1. **AI answers**: named in live engine answers, top-3 placement, engine coverage. When Gemini can't use Google Search (free API keys), it answers from the live Google Maps results for each question, which is the local data the Gemini app leans on. Without that, an API model answers from memory and names a different list from the app.
-2. **Google Maps & reviews**: rank on Maps for "best [type] in [city]" (no CBD map bias), star rating, review count against the top 3, profile completeness.
+1. **AI answers**: named in live engine answers, top-3 placement, engine coverage. When Gemini can't use Google Search (free API keys), it answers from the live Google Maps results searched from the city centre, the local data the Gemini app leans on. Answers from model memory alone are shown but not scored: they name a different list from the real app.
+2. **Google Maps & reviews**: how often the business is top 3 on Maps for "best [type] in [city]", searched from five spots across the city (centre, north, east, south, west). Maps results depend on where the searcher is, and nearly every business ranks #1 next to its own address, so one spot can't give a fair answer. The report also shows the rank from right next to the business (what you see on your phone in the shop), plus star rating, review count against the top 3, and profile completeness. About six Places searches per audit.
 
 **Site readiness**
 3. **Structured data**: LocalBusiness subtype, address, phone, hours, service area, sameAs, FAQPage

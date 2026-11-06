@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 import type { EngineId } from "@/lib/types";
 import { getCountry, type Place } from "@/lib/locale";
-import { searchLocal, type LocalListing } from "@/lib/places";
+import { geocodeCity, searchLocal, type LocalListing } from "@/lib/places";
 import { coreName, hostOf, norm } from "@/lib/names";
 
 /** How an answer was sourced: a live web search, live Google Maps results, or the model's memory. */
@@ -129,10 +129,16 @@ async function geminiCall(model: string, text: string, search: boolean) {
  * different list from the Gemini app, which searches live. So we give it what the app sees for
  * local questions: the live Google Maps results for that exact question, in Google's order.
  */
-async function mapsGroundedPrompt(prompt: string, loc: Loc): Promise<{ text: string; listings: LocalListing[] } | null> {
+async function mapsGroundedPrompt(prompt: string, loc: Loc, given?: LocalListing[]): Promise<{ text: string; listings: LocalListing[] } | null> {
   if (!env.googlePlaces) return null;
-  // No map bias: the city is in the question, and biasing to the CBD reorders results away from what people see.
-  const listings = await searchLocal(prompt, { country: loc.country }, 8).catch(() => []);
+  // Search from the city centre. Without a point, Google uses the server's location (Sydney on Vercel).
+  // Audits pass in the Maps results they already fetched from the city centre: no extra searches.
+  let listings = given?.slice(0, 8) ?? [];
+  if (!listings.length) {
+    const city = await geocodeCity(loc.city, loc.countryName, loc.country).catch(() => null);
+    const near = city ? { center: city.center, radius: 4000 } : undefined;
+    listings = await searchLocal(prompt, { country: loc.country, near }, 8).catch(() => []);
+  }
   if (!listings.length) return null;
   const lines = listings.map((l, i) =>
     [
@@ -168,7 +174,7 @@ function namedListings(answer: string, listings: LocalListing[]) {
     .filter((c) => c.url);
 }
 
-async function askGemini(prompt: string, loc: Loc): Promise<EngineReply> {
+async function askGemini(prompt: string, loc: Loc, mapsListings?: LocalListing[]): Promise<EngineReply> {
   let json: GeminiResponse | null = null;
   let grounding: Grounding = geminiSearchBlocked ? "none" : "web";
   let maps: Awaited<ReturnType<typeof mapsGroundedPrompt>> = null;
@@ -185,7 +191,7 @@ async function askGemini(prompt: string, loc: Loc): Promise<EngineReply> {
         }
       }
       if (!json) {
-        maps ??= await mapsGroundedPrompt(prompt, loc);
+        maps ??= await mapsGroundedPrompt(prompt, loc, mapsListings);
         if (maps) grounding = "maps";
         json = await geminiCall(model, maps?.text ?? `I'm in ${where(loc)}. ${prompt}`, false);
       }
@@ -327,13 +333,14 @@ async function askOllama(prompt: string, loc: Loc): Promise<EngineReply> {
   return { answer, citations: results.map((r) => ({ url: r.url, title: r.title })) };
 }
 
-export async function askEngine(engine: EngineId, prompt: string, place?: Place): Promise<EngineReply> {
+/** mapsListings: Google Maps results the caller already has, used to ground Gemini without searching again. */
+export async function askEngine(engine: EngineId, prompt: string, place?: Place, mapsListings?: LocalListing[]): Promise<EngineReply> {
   const loc = locFor(place);
   switch (engine) {
     case "chatgpt":
       return askChatGPT(prompt, loc);
     case "gemini":
-      return askGemini(prompt, loc);
+      return askGemini(prompt, loc, mapsListings);
     case "perplexity":
       return askPerplexity(prompt, loc);
     case "claude":

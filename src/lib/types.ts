@@ -26,6 +26,15 @@ export type LocalPresence = {
   mapsUrl?: string | null;
   /** The top three on Maps for the query, for comparison. */
   leaders: { name: string; rating: number | null; reviews: number }[];
+  /** Rank from spots across the city (rank null = not in the top 20). Newer audits only. */
+  grid?: { label: string; rank: number | null; checked: boolean }[];
+  /** How many of the checked spots show the business in the top 3. */
+  top3?: number;
+  spots?: number;
+  /** Rank when searching from right next to the business (what you see standing in the shop). */
+  nearYou?: number | null;
+  /** Why Maps couldn't be checked, if it couldn't. */
+  error?: string;
 };
 
 export type Pillar = {

@@ -2,6 +2,7 @@ import "server-only";
 import type { EngineAnswer, EngineId } from "@/lib/types";
 import { suburbs } from "@/lib/categories";
 import type { Place } from "@/lib/locale";
+import type { LocalListing } from "@/lib/places";
 import { askEngine } from "./engines";
 
 import { coreName, hostOf, hostOf as domainRoot, norm, similarName } from "@/lib/names";
@@ -89,10 +90,11 @@ export async function runPrompt(
   business: Business,
   competitors: string[] = [],
   place?: Place,
+  mapsListings?: LocalListing[],
 ): Promise<EngineAnswer> {
   const t0 = Date.now();
   try {
-    const { answer, citations, grounded, grounding } = await askEngine(engine, prompt, place);
+    const { answer, citations, grounded, grounding } = await askEngine(engine, prompt, place, mapsListings);
     // The business's own suburb and city often appear as headings; they aren't rivals.
     const own = new Set([place?.area, place?.city].filter(Boolean).map((p) => norm(p!)));
     const named = extractNames(answer).filter((n) => !own.has(norm(n)));
@@ -153,6 +155,7 @@ export async function runMatrix(
   business: Business,
   competitors: string[] = [],
   place?: Place,
+  mapsListings?: LocalListing[],
   concurrency = 4,
 ): Promise<EngineAnswer[]> {
   const jobs = prompts.flatMap((p) => engines.map((e) => ({ e, p })));
@@ -162,7 +165,7 @@ export async function runMatrix(
     Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
       while (i < jobs.length) {
         const idx = i++;
-        out[idx] = await runPrompt(jobs[idx].e, jobs[idx].p, business, competitors, place);
+        out[idx] = await runPrompt(jobs[idx].e, jobs[idx].p, business, competitors, place, mapsListings);
       }
     }),
   );
