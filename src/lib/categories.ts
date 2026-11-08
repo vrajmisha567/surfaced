@@ -19,6 +19,12 @@ export type Category = {
   auFaqs?: string[];
   auDirectories?: string[];
   custom?: boolean;
+  /** How people say it in a sentence ("physio", "Chinese restaurant"). */
+  say: string;
+  sayPlural: string;
+  /** For a specialty such as "restaurant:chinese": the base type and the specialty label. */
+  baseId?: string;
+  specialty?: string;
 };
 
 type Opts = {
@@ -95,6 +101,8 @@ function def(id: string, label: string, plural: string, group: Group, schemaType
     auPrompts: o.auPrompts,
     auFaqs: o.auFaqs,
     auDirectories: o.auDirectories,
+    say: s,
+    sayPlural: sp,
   };
 }
 
@@ -302,21 +310,347 @@ function customCategory(id: string): Category {
   return { ...def(id, label, pluralise(label), "Other", "LocalBusiness", { say: type, sayPlural: pluralise(type) }), custom: true };
 }
 
+/* ---------------- Specialties ---------------- */
+
+/*
+  Some businesses are only compared against their own kind: a Chinese restaurant
+  against other Chinese restaurants, a family lawyer against family lawyers.
+  A specialty narrows the type's noun ("restaurant" → "Chinese restaurant"), which
+  flows into the AI questions, the Google Maps search, rivals, reports and stats.
+  Stored as "<type>:<specialty>", e.g. "restaurant:chinese" or "restaurant:ethiopian".
+*/
+
+/** [what the menu shows, how people say it, plural if not regular]. */
+type SpecialtyDef = [label: string, say: string, sayPlural?: string];
+type SpecialtyGroup = { field: string; options: SpecialtyDef[] };
+
+const suffixed = (noun: string, labels: string[]): SpecialtyDef[] => labels.map((l) => [l, `${l} ${noun}`]);
+const lowerSuffixed = (noun: string, labels: string[]): SpecialtyDef[] => labels.map((l) => [l, `${l.toLowerCase()} ${noun}`]);
+
+export const specialties: Record<string, SpecialtyGroup> = {
+  restaurant: {
+    field: "Cuisine",
+    options: [
+      ...suffixed("restaurant", [
+        "Chinese", "Indian", "Italian", "Thai", "Japanese", "Vietnamese", "Korean", "Malaysian", "Indonesian", "Nepalese", "Sri Lankan", "Pakistani",
+        "Afghan", "Lebanese", "Turkish", "Middle Eastern", "Greek", "Mediterranean", "French", "Spanish", "Mexican", "Brazilian", "Peruvian",
+        "Ethiopian", "African", "American", "Modern Australian",
+      ]),
+      ["Seafood", "seafood restaurant"],
+      ["Steakhouse", "steakhouse"],
+      ["Sushi", "sushi restaurant"],
+      ["Ramen", "ramen restaurant"],
+      ["Dumplings", "dumpling restaurant"],
+      ["Yum cha", "yum cha restaurant"],
+      ["Vegan", "vegan restaurant"],
+      ["Vegetarian", "vegetarian restaurant"],
+      ["Halal", "halal restaurant"],
+    ],
+  },
+  takeaway: {
+    field: "Food",
+    options: [
+      ["Pizza", "pizza shop"],
+      ["Burgers", "burger shop"],
+      ["Fish and chips", "fish and chip shop"],
+      ["Kebabs", "kebab shop"],
+      ["Fried chicken", "fried chicken shop"],
+      ["Chinese", "Chinese takeaway", "Chinese takeaways"],
+      ["Indian", "Indian takeaway", "Indian takeaways"],
+      ["Thai", "Thai takeaway", "Thai takeaways"],
+    ],
+  },
+  cafe: {
+    field: "Style",
+    options: [
+      ["Specialty coffee", "specialty coffee cafe"],
+      ["Brunch", "brunch cafe"],
+      ["Vegan", "vegan cafe"],
+      ["Dog-friendly", "dog-friendly cafe"],
+      ["Desserts", "dessert cafe"],
+      ["Bubble tea", "bubble tea shop"],
+    ],
+  },
+  bakery: {
+    field: "Speciality",
+    options: [
+      ["Sourdough", "sourdough bakery", "sourdough bakeries"],
+      ["Cakes", "cake shop"],
+      ["Patisserie", "patisserie"],
+      ["Gluten-free", "gluten-free bakery", "gluten-free bakeries"],
+      ["Donuts", "donut shop"],
+    ],
+  },
+  bar: {
+    field: "Type",
+    options: [
+      ["Cocktail bar", "cocktail bar"],
+      ["Wine bar", "wine bar"],
+      ["Sports bar", "sports bar"],
+      ["Rooftop bar", "rooftop bar"],
+      ["Craft beer", "craft beer bar"],
+      ["Irish pub", "Irish pub"],
+    ],
+  },
+  winery: {
+    field: "Type",
+    options: [
+      ["Winery", "winery", "wineries"],
+      ["Brewery", "brewery", "breweries"],
+      ["Distillery", "distillery", "distilleries"],
+      ["Cidery", "cidery", "cideries"],
+    ],
+  },
+  dentist: {
+    field: "Service",
+    options: [
+      ["Orthodontist", "orthodontist"],
+      ["Cosmetic", "cosmetic dentist"],
+      ["Children's", "children's dentist"],
+      ["Emergency", "emergency dentist"],
+      ["Dental implants", "dental implant dentist"],
+      ["Invisalign", "Invisalign provider"],
+    ],
+  },
+  physio: {
+    field: "Speciality",
+    options: lowerSuffixed("physio", ["Sports", "Women's health", "Pelvic floor", "Neuro", "Paediatric", "Vestibular"]),
+  },
+  chiropractor: { field: "Speciality", options: lowerSuffixed("chiropractor", ["Sports", "Pregnancy", "Paediatric"]) },
+  psychologist: {
+    field: "Speciality",
+    options: [
+      ["Child", "child psychologist"],
+      ["Couples", "couples counsellor"],
+      ["Anxiety", "anxiety psychologist"],
+      ["ADHD assessments", "ADHD psychologist"],
+      ["Trauma", "trauma psychologist"],
+      ["Eating disorders", "eating disorder psychologist"],
+    ],
+  },
+  gp: {
+    field: "Type",
+    options: [
+      ["Bulk billing", "bulk billing GP", "bulk billing GPs"],
+      ["Women's health", "women's health GP", "women's health GPs"],
+      ["Men's health", "men's health GP", "men's health GPs"],
+      ["Skin cancer", "skin cancer clinic"],
+      ["After hours", "after-hours GP", "after-hours GPs"],
+    ],
+  },
+  massage: { field: "Type", options: lowerSuffixed("massage therapist", ["Remedial", "Sports", "Thai", "Pregnancy", "Lymphatic"]) },
+  optometrist: { field: "Speciality", options: [["Children's", "children's optometrist"], ["Contact lenses", "contact lens optometrist"], ["Myopia control", "myopia control optometrist"]] },
+  salon: {
+    field: "Speciality",
+    options: [
+      ["Curly hair", "curly hair specialist"],
+      ["Balayage", "balayage specialist"],
+      ["Hair extensions", "hair extensions specialist"],
+      ["Bridal hair", "bridal hair stylist"],
+      ["Kids", "kids' hairdresser"],
+    ],
+  },
+  beauty: {
+    field: "Treatment",
+    options: [
+      ["Lashes", "lash studio"],
+      ["Brows", "brow bar"],
+      ["Skin and facials", "skin clinic"],
+      ["Laser hair removal", "laser hair removal clinic"],
+      ["Waxing", "waxing salon"],
+      ["Cosmetic injectables", "cosmetic injector"],
+    ],
+  },
+  tattoo: { field: "Style", options: lowerSuffixed("tattoo artist", ["Fine line", "Japanese", "Realism", "Traditional", "Cover-up"]) },
+  gym: {
+    field: "Type",
+    options: [
+      ["CrossFit", "CrossFit gym"],
+      ["Boxing", "boxing gym"],
+      ["24/7", "24/7 gym"],
+      ["Women's", "women's gym"],
+      ["Strength and powerlifting", "strength gym"],
+    ],
+  },
+  yoga: { field: "Style", options: [["Hot yoga", "hot yoga studio"], ["Aerial yoga", "aerial yoga studio"], ["Prenatal yoga", "prenatal yoga class", "prenatal yoga classes"]] },
+  pilates: { field: "Style", options: [["Reformer", "reformer pilates studio"], ["Clinical", "clinical pilates studio"], ["Mat", "mat pilates class", "mat pilates classes"]] },
+  "martial-arts": {
+    field: "Discipline",
+    options: [
+      ["Brazilian jiu-jitsu", "Brazilian jiu-jitsu gym"],
+      ["Muay Thai", "Muay Thai gym"],
+      ["MMA", "MMA gym"],
+      ["Karate", "karate school"],
+      ["Taekwondo", "taekwondo school"],
+      ["Kids martial arts", "kids' martial arts class", "kids' martial arts classes"],
+    ],
+  },
+  mechanic: {
+    field: "Speciality",
+    options: [
+      ["European cars", "European car mechanic"],
+      ["Japanese cars", "Japanese car mechanic"],
+      ["4WD", "4WD mechanic"],
+      ["Diesel", "diesel mechanic"],
+      ["Auto electrical", "auto electrician"],
+      ["Transmissions", "transmission specialist"],
+      ["Mobile", "mobile mechanic"],
+    ],
+  },
+  "car-dealer": { field: "Type", options: [["Used cars", "used car dealer"], ["Electric vehicles", "EV dealer"], ["Prestige", "prestige car dealer"]] },
+  plumber: {
+    field: "Service",
+    options: [
+      ["Emergency", "emergency plumber"],
+      ["Gas fitting", "gas fitter"],
+      ["Hot water", "hot water plumber"],
+      ["Blocked drains", "blocked drain plumber"],
+      ["Bathroom renovations", "bathroom renovation plumber"],
+    ],
+  },
+  electrician: {
+    field: "Service",
+    options: [
+      ["Emergency", "emergency electrician"],
+      ["EV chargers", "EV charger installer"],
+      ["Commercial", "commercial electrician"],
+      ["Lighting", "lighting electrician"],
+    ],
+  },
+  builder: {
+    field: "Type",
+    options: [
+      ["New homes", "home builder"],
+      ["Renovations", "renovation builder"],
+      ["Extensions", "home extension builder"],
+      ["Granny flats", "granny flat builder"],
+      ["Commercial", "commercial builder"],
+    ],
+  },
+  cleaner: {
+    field: "Service",
+    options: [
+      ["End of lease", "end of lease cleaner"],
+      ["Office and commercial", "commercial cleaner"],
+      ["Airbnb", "Airbnb cleaner"],
+      ["Deep cleaning", "deep cleaning service"],
+    ],
+  },
+  removalist: { field: "Type", options: [["Interstate", "interstate removalist"], ["Local", "local removalist"], ["Office", "office removalist"]] },
+  lawyer: {
+    field: "Area of law",
+    options: lowerSuffixed("lawyer", ["Family", "Criminal", "Immigration", "Personal injury", "Employment", "Business", "Property", "Wills and estates", "Traffic"]),
+  },
+  accountant: {
+    field: "Speciality",
+    options: [
+      ["Tax returns", "tax accountant"],
+      ["Small business", "small business accountant"],
+      ["Tradies", "accountant for tradies", "accountants for tradies"],
+      ["SMSF", "SMSF accountant"],
+      ["Crypto", "crypto accountant"],
+    ],
+  },
+  "real-estate": {
+    field: "Type",
+    options: [
+      ["Selling", "selling agent"],
+      ["Property management", "property manager"],
+      ["Buyer's agent", "buyer's agent"],
+      ["Commercial", "commercial real estate agent"],
+    ],
+  },
+  architect: { field: "Type", options: lowerSuffixed("architect", ["Residential", "Commercial", "Sustainable"]) },
+  "web-designer": { field: "Platform", options: [["Shopify", "Shopify developer"], ["WordPress", "WordPress developer"], ["Webflow", "Webflow designer"]] },
+  marketing: { field: "Service", options: [["SEO", "SEO agency", "SEO agencies"], ["Social media", "social media agency", "social media agencies"], ["Google Ads", "Google Ads agency", "Google Ads agencies"], ["Branding", "branding agency", "branding agencies"]] },
+  vet: { field: "Type", options: [["Emergency", "emergency vet"], ["Cats only", "cat vet"], ["Exotic pets", "exotic pet vet"], ["Mobile", "mobile vet"]] },
+  tutor: { field: "Subject", options: lowerSuffixed("tutor", ["Maths", "English", "Science", "Coding", "Language", "Exam prep"]) },
+  "music-teacher": { field: "Instrument", options: lowerSuffixed("teacher", ["Piano", "Guitar", "Singing", "Violin", "Drum"]) },
+  photographer: { field: "Type", options: lowerSuffixed("photographer", ["Newborn", "Family", "Headshot", "Product", "Real estate", "Event"]) },
+  hotel: { field: "Type", options: lowerSuffixed("hotel", ["Boutique", "Luxury", "Budget", "Family-friendly", "Pet-friendly"]) },
+  florist: { field: "Speciality", options: [["Weddings", "wedding florist"], ["Same-day delivery", "same-day delivery florist"]] },
+};
+
+const SPECIALTY_RE = /^[a-z0-9][a-z0-9 '&/+.-]{1,38}$/i;
+
+export function isValidSpecialty(s: string) {
+  return SPECIALTY_RE.test(s.trim());
+}
+
+const capFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "restaurant" + "Chinese" → "restaurant:chinese". */
+export function specialtyCategoryId(baseId: string, specialty: string) {
+  return `${baseId}:${specialty.trim().toLowerCase().replace(/\s+/g, " ")}`;
+}
+
+function specialtyCategory(baseId: string, key: string): Category | null {
+  const base = categories.find((c) => c.id === baseId);
+  if (!base || !isValidSpecialty(key)) return null;
+  const known = specialties[baseId]?.options.find(([label]) => label.toLowerCase() === key);
+  const label = known?.[0] ?? capFirst(key);
+  const say = known?.[1] ?? `${key} ${base.say}`;
+  const sayPlural = known?.[2] ?? pluralise(say);
+  // Only the specialty's own questions: the type's extra prompts ("special dinner in {city}",
+  // "which dental clinics accept my health fund") would mix specialties back together.
+  const c = def(`${baseId}:${key}`, capFirst(say), capFirst(sayPlural), base.group, base.schemaType, {
+    say,
+    sayPlural,
+    faqs: base.faqs,
+    auFaqs: base.auFaqs,
+    auDirectories: base.auDirectories,
+  });
+  return { ...c, baseId, specialty: label };
+}
+
 /* ---------------- Lookups ---------------- */
 
 export function getCategory(id: string): Category {
   if (id.startsWith("custom:") && isValidCustomType(id.slice(7))) return customCategory(id);
+  const i = id.indexOf(":");
+  if (i > 0) {
+    const s = specialtyCategory(id.slice(0, i), id.slice(i + 1));
+    if (s) return s;
+    const base = categories.find((c) => c.id === id.slice(0, i));
+    if (base) return base;
+  }
   return categories.find((c) => c.id === id) ?? categories[0];
 }
 
-/** Reads category + customType form fields. Returns null if "Other" was picked without a valid type. */
-export function categoryFromForm(category: string, customType?: string): string | null {
-  const id = category === "custom" ? (customType && isValidCustomType(customType) ? customCategoryId(customType) : "") : category;
-  return id && isValidCategoryId(id) ? id : null;
+/**
+ * Reads the business-type form fields. `specialty` is a menu choice ("" = all of that type,
+ * "other" = typed in `specialtyOther`). Returns null if "Other" was picked without a valid entry.
+ */
+export function categoryFromForm(category: string, customType?: string, specialty?: string, specialtyOther?: string): string | null {
+  if (category === "custom") {
+    const id = customType && isValidCustomType(customType) ? customCategoryId(customType) : "";
+    return id && isValidCategoryId(id) ? id : null;
+  }
+  if (!categories.some((c) => c.id === category)) return null;
+  const spec = specialty === "other" ? (specialtyOther ?? "").trim() : (specialty ?? "").trim();
+  if (!spec) return category;
+  if (!isValidSpecialty(spec)) return null;
+  return specialtyCategoryId(category, spec);
 }
 
 export function isValidCategoryId(id: string) {
-  return categories.some((c) => c.id === id) || (id.startsWith("custom:") && isValidCustomType(id.slice(7)));
+  if (categories.some((c) => c.id === id)) return true;
+  if (id.startsWith("custom:")) return isValidCustomType(id.slice(7));
+  const i = id.indexOf(":");
+  return i > 0 && specialtyCategory(id.slice(0, i), id.slice(i + 1)) !== null;
+}
+
+/** Splits a stored id into the form's fields. */
+export function categoryFormValues(id: string) {
+  if (id.startsWith("custom:")) return { category: "custom", customType: id.slice(7), specialty: "", specialtyOther: "" };
+  const i = id.indexOf(":");
+  if (i < 0) return { category: id, customType: "", specialty: "", specialtyOther: "" };
+  const baseId = id.slice(0, i);
+  const key = id.slice(i + 1);
+  const known = specialties[baseId]?.options.find(([label]) => label.toLowerCase() === key);
+  return known
+    ? { category: baseId, customType: "", specialty: known[0], specialtyOther: "" }
+    : { category: baseId, customType: "", specialty: "other", specialtyOther: key };
 }
 
 export const categoryGroups: Group[] = ["Trades", "Home", "Health", "Food", "Beauty", "Fitness", "Auto", "Professional", "Pets", "Education", "Events", "Retail"];

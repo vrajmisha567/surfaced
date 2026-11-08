@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { runAuditAction, type AuditFormState } from "@/app/actions";
+import { categoryFromForm } from "@/lib/categories";
 import { CategoryPicker, LocationFields } from "./business-fields";
 import { Button, inputCls } from "./ui";
 
@@ -66,7 +67,7 @@ export function AuditForm({ defaultCategory = "plumber" }: { defaultCategory?: s
         <input name="url" required placeholder="yourbusiness.com" defaultValue={f.url} className={inputCls} aria-label="Website" inputMode="url" />
         <CategoryPicker
           className="sm:col-span-2"
-          defaultValue={f.category === "custom" && f.customType ? `custom:${f.customType}` : (f.category ?? defaultCategory)}
+          defaultValue={f.category ? (categoryFromForm(f.category, f.customType, f.specialty, f.specialtyOther) ?? f.category) : defaultCategory}
         />
         <LocationFields guessCountry defaults={{ suburb: f.suburb, city: f.city, country: f.country }} />
       </div>

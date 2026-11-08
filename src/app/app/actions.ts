@@ -42,7 +42,7 @@ export async function logout() {
 
 export async function findProspects(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const category = categoryFromForm(String(form.get("category") ?? "plumber"), String(form.get("customType") ?? ""));
+  const category = categoryFromForm(String(form.get("category") ?? "plumber"), String(form.get("customType") ?? ""), String(form.get("specialty") ?? ""), String(form.get("specialtyOther") ?? ""));
   if (!category) return { ok: false, message: "Pick a business type, or type one under Other." };
   const place = locationFromForm(form);
   const suburb = shortPlace(place);
@@ -92,13 +92,15 @@ const manualSchema = z.object({
   country: z.string().trim().optional(),
   category: z.string(),
   customType: z.string().trim().optional(),
+  specialty: z.string().trim().optional(),
+  specialtyOther: z.string().trim().optional(),
 });
 
 export async function addProspect(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireAdmin();
   const p = manualSchema.safeParse(Object.fromEntries(form));
   if (!p.success) return { ok: false, message: "Name is required" };
-  const category = categoryFromForm(p.data.category, p.data.customType);
+  const category = categoryFromForm(p.data.category, p.data.customType, p.data.specialty, p.data.specialtyOther);
   if (!category) return { ok: false, message: "Pick a business type, or type one under Other." };
   const place = locationFromForm(form);
   await db.prospects.create({
@@ -233,6 +235,8 @@ const clientSchema = z.object({
   country: z.string().trim().toUpperCase().refine(isKnownCountry),
   category: z.string(),
   customType: z.string().trim().optional(),
+  specialty: z.string().trim().optional(),
+  specialtyOther: z.string().trim().optional(),
   contact_email: z.string().trim().optional(),
   plan: z.enum(["fixpack", "visibility", "growth", "pilot"]),
 });
@@ -241,10 +245,10 @@ export async function createClient(_: ActionResult | null, form: FormData): Prom
   await requireAdmin();
   const p = clientSchema.safeParse(Object.fromEntries(form));
   if (!p.success) return { ok: false, message: "Fill in name, website, city, country and plan" };
-  const category = categoryFromForm(p.data.category, p.data.customType);
+  const category = categoryFromForm(p.data.category, p.data.customType, p.data.specialty, p.data.specialtyOther);
   if (!category) return { ok: false, message: "Pick a business type, or type one under Other." };
-  const { customType: _unused, ...data } = p.data;
-  void _unused;
+  const { customType: _c, specialty: _s, specialtyOther: _o, ...data } = p.data;
+  void [_c, _s, _o];
   const c = await db.clients.create({
     ...data,
     category,

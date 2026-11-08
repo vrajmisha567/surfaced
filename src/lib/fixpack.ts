@@ -51,7 +51,9 @@ export async function buildFixPack(r: AuditResult, opts: { useAi?: boolean } = {
     email: x?.emails[0],
     image: (existing.image as string) ?? `${origin}/og-image.jpg`,
     logo: (existing.logo as string) ?? `${origin}/logo.png`,
-    priceRange: (existing.priceRange as string) ?? "$$",
+    priceRange: (existing.priceRange as string) ?? "$",
+    // Restaurants and takeaways: say which cuisine, so engines compare like with like.
+    ...((cat.baseId === "restaurant" || cat.baseId === "takeaway") && cat.specialty ? { servesCuisine: cat.specialty } : {}),
     address: {
       "@type": "PostalAddress",
       streetAddress: address ? address.split(",")[0].trim() : "[street address]",

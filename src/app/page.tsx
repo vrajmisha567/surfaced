@@ -369,7 +369,7 @@ export default async function Home() {
             </div>
             <p className="mt-8 text-sm text-muted">
               Plus {categories.length - showcase.length} more built-in business types, from roofers and vets to lawyers and wedding venues. Not listed? Pick
-              &ldquo;Other&rdquo; in the audit form and type yours. Questions are written for your city and country, wherever you are.
+              &ldquo;Other&rdquo; in the audit form and type yours. Questions are written for your city and country, wherever you are, and compare you with your own kind: Chinese restaurants with Chinese restaurants, family lawyers with family lawyers.
             </p>
           </div>
         </section>

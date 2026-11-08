@@ -1,21 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { categories, categoryGroups, suburbs } from "@/lib/categories";
+import { categories, categoryFormValues, categoryGroups, specialties, suburbs } from "@/lib/categories";
 import { countryOptions, getCountry, groupLabels } from "@/lib/locale";
 import { inputCls } from "./ui";
 
-/** Business type: ~90 built-in categories plus "Other", where you type your own. */
+/**
+ * Business type: ~90 built-in categories plus "Other", where you type your own.
+ * Types with specialties (restaurants → cuisine, lawyers → area of law...) get a second menu,
+ * so a Chinese restaurant is compared with Chinese restaurants, not every restaurant.
+ */
 export function CategoryPicker({ defaultValue = "plumber", plural = false, className = "" }: { defaultValue?: string; plural?: boolean; className?: string }) {
-  const isCustom = defaultValue.startsWith("custom:") || defaultValue === "custom";
-  const [value, setValue] = useState(isCustom ? "custom" : defaultValue);
+  const initial = categoryFormValues(defaultValue === "custom" ? "custom:" : defaultValue);
+  const [value, setValue] = useState(initial.category);
+  const [spec, setSpec] = useState(initial.specialty);
+  const group = specialties[value];
+  const split = value === "custom" || !!group;
   return (
-    <div className={`flex gap-2 ${className}`}>
+    <div className={`flex flex-wrap gap-2 ${className}`}>
       <select
         name="category"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className={`${inputCls} ${value === "custom" ? "w-1/2" : ""}`}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setSpec("");
+        }}
+        className={`${inputCls} ${split ? "sm:w-[calc(50%-4px)]" : ""}`}
         aria-label="Business type"
       >
         {categoryGroups.map((g) => (
@@ -39,10 +49,33 @@ export function CategoryPicker({ defaultValue = "plumber", plural = false, class
           required
           maxLength={50}
           autoFocus
-          defaultValue={defaultValue.startsWith("custom:") ? defaultValue.slice(7) : ""}
+          defaultValue={initial.customType}
           placeholder="e.g. wedding photographer"
-          className={`${inputCls} w-1/2`}
+          className={`${inputCls} sm:w-[calc(50%-4px)]`}
           aria-label="Your type of business"
+        />
+      )}
+      {group && (
+        <select name="specialty" value={spec} onChange={(e) => setSpec(e.target.value)} className={`${inputCls} sm:w-[calc(50%-4px)]`} aria-label={group.field}>
+          <option value="">Any {group.field.toLowerCase()}</option>
+          {group.options.map(([label]) => (
+            <option key={label} value={label}>
+              {label}
+            </option>
+          ))}
+          <option value="other">Other: type your own</option>
+        </select>
+      )}
+      {group && spec === "other" && (
+        <input
+          name="specialtyOther"
+          required
+          maxLength={40}
+          autoFocus
+          defaultValue={initial.category === value ? initial.specialtyOther : ""}
+          placeholder={`Your ${group.field.toLowerCase()}, e.g. ${value === "restaurant" ? "Burmese" : "your speciality"}`}
+          className={`${inputCls} w-full`}
+          aria-label={`Your ${group.field.toLowerCase()}`}
         />
       )}
     </div>

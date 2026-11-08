@@ -19,13 +19,21 @@ const schema = z
     country: z.string().trim().toUpperCase().refine(isKnownCountry, "Pick a country"),
     category: z.string().trim(),
     customType: z.string().trim().max(50).optional().default(""),
+    specialty: z.string().trim().max(60).optional().default(""),
+    specialtyOther: z.string().trim().max(60).optional().default(""),
     email: z.union([z.literal(""), z.email("That email doesn't look right")]).optional(),
   })
   .transform((d, ctx) => {
     // "Other" means the visitor typed their own business type.
-    const category = categoryFromForm(d.category, d.customType);
+    const category = categoryFromForm(d.category, d.customType, d.specialty, d.specialtyOther);
     if (!category) {
-      ctx.addIssue({ code: "custom", message: d.category === "custom" ? "Type your kind of business, e.g. wedding photographer" : "Pick a business type" });
+      const message =
+        d.category === "custom"
+          ? "Type your kind of business, e.g. wedding photographer"
+          : d.specialty === "other"
+            ? "Type the speciality in plain words, e.g. Burmese"
+            : "Pick a business type";
+      ctx.addIssue({ code: "custom", message });
       return z.NEVER;
     }
     return { url: d.url, businessName: d.businessName, suburb: d.suburb, city: d.city, country: d.country, category, email: d.email };
