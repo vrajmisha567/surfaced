@@ -41,7 +41,7 @@ function ProgressSteps() {
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-xs text-muted">Takes 20–60 seconds. Keep this tab open.</p>
+      <p className="mt-3 text-xs text-muted">Usually under a minute. Keep this tab open.</p>
     </div>
   );
 }

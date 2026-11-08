@@ -4,7 +4,7 @@ import { getCategory } from "@/lib/categories";
 import { Card, Label, ScoreBar, ScoreRing, StatusPill, scoreWord } from "./ui";
 import { longPlace, placeOf, shortPlace } from "@/lib/locale";
 
-const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude", ollama: "Open model" };
+const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude", ollama: "Open model", ai_overview: "Google AI Overviews" };
 
 export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; createdAt: string }) {
   const cat = getCategory(r.input.category);
@@ -202,17 +202,7 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
                 <div className="font-medium">Your rank from {local.spots} spots across {city}</div>
                 <div className="label">Same search, different searcher location</div>
               </div>
-              <div className="mt-4 grid grid-cols-5 gap-2">
-                {local.grid.map((g) => (
-                  <div
-                    key={g.label}
-                    className={`rounded-lg border px-2 py-3 text-center ${!g.checked ? "border-line bg-paper text-faint" : g.rank !== null && g.rank <= 3 ? "border-good/30 bg-good-soft" : g.rank !== null && g.rank <= 10 ? "border-warn/30 bg-warn-soft" : "border-line bg-paper"}`}
-                  >
-                    <div className="tabular text-lg font-semibold">{!g.checked ? "?" : g.rank ? `#${g.rank}` : "20+"}</div>
-                    <div className="label mt-0.5">{g.label}</div>
-                  </div>
-                ))}
-              </div>
+              <RankHeatMap grid={local.grid} city={city} />
               {local.nearYou != null && (
                 <p className="mt-4 text-sm text-ink-2">
                   Searching from right next to your business, you're <strong>#{local.nearYou}</strong>. That's what you'll see on your own
@@ -260,6 +250,30 @@ export function ReportView({ r, id, createdAt }: { r: AuditResult; id: string; c
               </tbody>
             </table>
           </Card>
+        </section>
+      )}
+
+      {/* Website: pages read + mobile speed */}
+      {(r.speed || (r.extracted?.pagesChecked?.length ?? 0) > 1) && (
+        <section>
+          <SectionHead n={next()} title="Your website" sub="What we read, and how it loads on a phone. Slow pages lose visitors and get crawled less." />
+          <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
+            {r.speed && <SpeedCard speed={r.speed} />}
+            {(r.extracted?.pagesChecked?.length ?? 0) > 1 && (
+              <Card className="p-5">
+                <div className="font-medium">Pages we read</div>
+                <p className="mt-1 text-sm text-muted">Contact details, FAQs and trust signals found on any of these count toward your score.</p>
+                <ul className="mt-3 space-y-1.5 text-sm">
+                  {r.extracted!.pagesChecked!.map((p) => (
+                    <li key={p.url} className="flex items-baseline gap-2">
+                      <span className="label w-16 shrink-0">{p.kind}</span>
+                      <span className="truncate text-ink-2">{p.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+          </div>
         </section>
       )}
 
@@ -342,5 +356,79 @@ function SectionHead({ n, title, sub }: { n: string; title: string; sub: string 
         <p className="mt-0.5 text-sm text-muted">{sub}</p>
       </div>
     </div>
+  );
+}
+
+/* ---------------- Maps heat map ---------------- */
+
+const POS: Record<string, string> = { North: "col-start-2 row-start-1", West: "col-start-1 row-start-2", Centre: "col-start-2 row-start-2", East: "col-start-3 row-start-2", South: "col-start-2 row-start-3" };
+
+/** The five search spots laid out like a map, each coloured by rank: green top 3, amber 4-10, grey beyond. */
+function RankHeatMap({ grid, city }: { grid: NonNullable<NonNullable<AuditResult["local"]>["grid"]>; city: string }) {
+  const tone = (g: (typeof grid)[number]) =>
+    !g.checked
+      ? "border-line bg-paper text-faint"
+      : g.rank !== null && g.rank <= 3
+        ? "border-good/40 bg-good-soft text-good"
+        : g.rank !== null && g.rank <= 10
+          ? "border-warn/40 bg-warn-soft text-warn"
+          : "border-line-2 bg-paper-2 text-muted";
+  return (
+    <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,22rem)_1fr] sm:items-center">
+      <div className="relative overflow-hidden rounded-xl border border-line bg-paper p-3">
+        <div aria-hidden className="grid-paper absolute inset-0 opacity-70" />
+        <div aria-hidden className="absolute inset-[18%] rounded-full border border-dashed border-line-2" />
+        <div className="relative grid grid-cols-3 grid-rows-3 gap-2" role="img" aria-label={`Google Maps rank from five spots across ${city}`}>
+          {grid.map((g) => (
+            <div key={g.label} className={`${POS[g.label] ?? ""} flex aspect-square flex-col items-center justify-center rounded-lg border ${tone(g)}`}>
+              <div className="tabular text-lg font-semibold leading-none">{!g.checked ? "?" : g.rank ? `#${g.rank}` : "20+"}</div>
+              <div className="label mt-1 !text-[10px]">{g.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2 text-sm text-ink-2">
+        <p>
+          Each square is the same Google Maps search, made from a different part of {city}. Customers see different lists depending on where they
+          are standing.
+        </p>
+        <div className="flex flex-wrap gap-3 text-xs">
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-good/40 bg-good-soft" /> Top 3</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-warn/40 bg-warn-soft" /> #4 to #10</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-line-2 bg-paper-2" /> Lower or not listed</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Mobile speed ---------------- */
+
+function SpeedCard({ speed }: { speed: NonNullable<AuditResult["speed"]> }) {
+  const sec = (v: number | null) => (v == null ? "—" : `${(v / 1000).toFixed(1)}s`);
+  const lcp = speed.field?.lcpMs ?? speed.lcpMs;
+  const rows: [string, string, string][] = [
+    ["Main content shows", sec(lcp), lcp == null ? "" : lcp <= 2500 ? "good" : lcp <= 4000 ? "ok" : "slow"],
+    ["First text appears", sec(speed.fcpMs), speed.fcpMs == null ? "" : speed.fcpMs <= 1800 ? "good" : speed.fcpMs <= 3000 ? "ok" : "slow"],
+    ["Layout jumps (CLS)", speed.cls == null ? "—" : speed.cls.toFixed(2), speed.cls == null ? "" : speed.cls <= 0.1 ? "good" : speed.cls <= 0.25 ? "ok" : "slow"],
+  ];
+  if (speed.field?.inpMs != null) rows.push(["Response to taps", `${speed.field.inpMs}ms`, speed.field.inpMs <= 200 ? "good" : speed.field.inpMs <= 500 ? "ok" : "slow"]);
+  const word = (t: string) => (t === "good" ? "text-good" : t === "ok" ? "text-warn" : t === "slow" ? "text-bad" : "text-muted");
+  return (
+    <Card className="flex items-center gap-5 p-5">
+      <ScoreRing score={speed.score} size={96} stroke={7} label="mobile" />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">Mobile page speed</div>
+        <div className="label mt-0.5">{speed.field ? "Real visitors + Google's test" : "Google's Lighthouse test"}</div>
+        <dl className="mt-3 space-y-1 text-sm">
+          {rows.map(([k, v, t]) => (
+            <div key={k} className="flex justify-between gap-3">
+              <dt className="text-ink-2">{k}</dt>
+              <dd className={`tabular font-medium ${word(t)}`}>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </Card>
   );
 }

@@ -48,6 +48,8 @@ export function integrations(): Integration[] {
     { key: "ollama", label: "Ollama Cloud (open models)", enabled: !!env.ollama, purpose: "AI visibility checks via Ollama web search, plus FAQ and outreach writing", envVars: ["OLLAMA_API_KEY", "OLLAMA_MODEL"] },
     { key: "supabase", label: "Supabase", enabled: !!(env.supabaseUrl && env.supabaseServiceKey), purpose: "Database (falls back to a local JSON file in dev)", envVars: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] },
     { key: "places", label: "Google Places", enabled: !!env.googlePlaces, purpose: "Finding local businesses to prospect", envVars: ["GOOGLE_PLACES_API_KEY"] },
+    { key: "dataforseo", label: "DataForSEO", enabled: !!(process.env.DATAFORSEO_LOGIN && process.env.DATAFORSEO_PASSWORD), purpose: "Real ChatGPT, Google AI Overviews, Claude and Perplexity answers, and Google Maps ranks without the Places daily cap (pay per use)", envVars: ["DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD"] },
+    { key: "pagespeed", label: "PageSpeed Insights", enabled: !!(process.env.PAGESPEED_API_KEY || env.googlePlaces), purpose: "Mobile page speed and Core Web Vitals (free; the key must allow PageSpeed Insights API)", envVars: ["PAGESPEED_API_KEY"] },
     { key: "firecrawl", label: "Firecrawl", enabled: !!env.firecrawl, purpose: "Rendering JavaScript-heavy sites during audits", envVars: ["FIRECRAWL_API_KEY"] },
     { key: "stripe", label: "Stripe", enabled: !!env.stripeSecret, purpose: "Checkout and subscriptions", envVars: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] },
     { key: "resend", label: "Resend", enabled: !!env.resend, purpose: "Report and receipt emails", envVars: ["RESEND_API_KEY", "RESEND_FROM"] },

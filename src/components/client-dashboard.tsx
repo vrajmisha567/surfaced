@@ -4,7 +4,7 @@ import { latestWeekRuns, weeklyStats } from "@/lib/tracker";
 import { Card, Label, StatTile, EmptyState } from "./ui";
 import { ShareBars, TrendChart } from "./charts";
 
-const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude", ollama: "Open model" };
+const engineName: Record<EngineId, string> = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity", claude: "Claude", ollama: "Open model", ai_overview: "Google AI Overviews" };
 
 export function ClientDashboard({ client, runs, audits }: { client: Client; runs: TrackerRun[]; audits: AuditRecord[] }) {
   const stats = weeklyStats(runs, client.competitors);

@@ -46,7 +46,7 @@ export type Pillar = {
   checks: Check[];
 };
 
-export type EngineId = "chatgpt" | "gemini" | "perplexity" | "claude" | "ollama";
+export type EngineId = "chatgpt" | "gemini" | "perplexity" | "claude" | "ollama" | "ai_overview";
 
 export type EngineAnswer = {
   engine: EngineId;
@@ -102,6 +102,20 @@ export type Extracted = {
   /** Firewall refused our crawler but let a browser in. Missing on older audits. */
   botBlocked?: boolean;
   textSample: string;
+  /** Homepage plus the key inner pages read (contact, about, FAQ...). Missing on older audits. */
+  pagesChecked?: { kind: string; url: string }[];
+  /** Phone numbers on the homepage alone, for the consistency check. */
+  homePhones?: string[];
+};
+
+/** Mobile page speed from Google PageSpeed Insights. Lab test, plus real-visitor data when Google has it. */
+export type PageSpeed = {
+  score: number;
+  lcpMs: number | null;
+  cls: number | null;
+  tbtMs: number | null;
+  fcpMs: number | null;
+  field: { lcpMs: number | null; inpMs: number | null; cls: number | null; overall: string | null } | null;
 };
 
 export type CrawlerAccess = {
@@ -142,6 +156,8 @@ export type AuditResult = {
   };
   /** Google Maps standing for the main search. Missing on older audits or without a Places key. */
   local?: LocalPresence | null;
+  /** Mobile page speed. Missing on older audits, or when PageSpeed isn't available. */
+  speed?: PageSpeed | null;
   /** Headline split (newer audits): how visible the business is now, and how ready its site is. */
   visibility?: number | null;
   readiness?: number | null;

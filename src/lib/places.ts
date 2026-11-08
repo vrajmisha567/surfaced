@@ -1,4 +1,5 @@
 import "server-only";
+import { dataforseoEnabled, dfsMapsSearch } from "@/lib/ai/dataforseo";
 import { env } from "@/lib/env";
 
 export type PlaceResult = {
@@ -76,6 +77,15 @@ const LITE_FIELDS = "places.id,places.displayName";
  * Cached for 15 minutes per query and point.
  */
 export async function searchLocal(query: string, opts: { country?: string; near?: Near; lite?: boolean } = {}, max = 10): Promise<LocalListing[]> {
+  // With DataForSEO, Maps rankings come from a real Google Maps search at that point.
+  if (opts.near && dataforseoEnabled() && process.env.DATAFORSEO_MAPS !== "off") {
+    const key = `dfs|${opts.near.center.latitude.toFixed(3)},${opts.near.center.longitude.toFixed(3)}|${max}|${query.toLowerCase().trim()}`;
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.at < 15 * 60_000) return hit.data;
+    const data = await dfsMapsSearch(query, opts.near.center, max);
+    cache.set(key, { at: Date.now(), data });
+    return data;
+  }
   if (!env.googlePlaces) throw new Error("GOOGLE_PLACES_API_KEY is not set");
   const at = opts.near ? `${opts.near.center.latitude.toFixed(3)},${opts.near.center.longitude.toFixed(3)},${opts.near.radius}` : "-";
   const key = `${opts.country ?? "AU"}|${at}|${opts.lite ? "lite" : "full"}|${max}|${query.toLowerCase().trim()}`;

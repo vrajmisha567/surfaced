@@ -9,6 +9,8 @@ import { extract } from "./extract";
 import { checkCrawlers } from "./robots";
 import { gradeFor, pillarMeta, scoreAi, scoreContent, scoreCrawl, scoreEntity, scoreLocal, scoreNap, scoreSchema, scoreSummary } from "./score";
 import { checkLocal } from "./local";
+import { withKeyPages } from "./pages";
+import { checkPageSpeed } from "./pagespeed";
 
 export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {}): Promise<AuditResult> {
   const t0 = Date.now();
@@ -32,10 +34,11 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
     return { local, localError: check.error, answers };
   })();
 
-  const [page, crawler, { local, localError, answers }] = await Promise.all([
+  const [page, crawler, { local, localError, answers }, speed] = await Promise.all([
     fetchPage(url).catch((e: unknown) => e as Error),
     checkCrawlers(url).catch(() => null),
     localAndAnswers,
+    checkPageSpeed(url),
   ]);
 
   const pillars: Pillar[] = [scoreAi(answers, measured), scoreLocal(local, localError)];
@@ -63,9 +66,10 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
       });
     }
   } else {
-    extracted = { ...extract(page.html, page.finalUrl, page.ms, page.renderer, place.country), botBlocked: page.botBlocked };
+    const home = { ...extract(page.html, page.finalUrl, page.ms, page.renderer, place.country), botBlocked: page.botBlocked };
+    extracted = await withKeyPages(home, place.country);
     const cr = crawler ?? { robotsFound: false, blocked: [], allowed: [], llmsTxt: false, sitemap: false };
-    pillars.push(scoreSchema(extracted, input), scoreNap(extracted, input), scoreContent(extracted, input), scoreEntity(extracted, input), scoreCrawl(extracted, cr));
+    pillars.push(scoreSchema(extracted, input), scoreNap(extracted, input), scoreContent(extracted, input), scoreEntity(extracted, input), scoreCrawl(extracted, cr, speed));
   }
 
   const ok = answers.filter((a) => !a.error);
@@ -76,6 +80,7 @@ export async function runAudit(raw: AuditInput, opts: { aiPrompts?: number } = {
     visibility,
     readiness,
     local,
+    speed,
     grade: gradeFor(overall),
     pillars,
     extracted,

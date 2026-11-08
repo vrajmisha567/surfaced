@@ -1,4 +1,4 @@
-import type { AuditInput, Check, CrawlerAccess, EngineAnswer, Extracted, LocalPresence, Pillar, PillarKey } from "@/lib/types";
+import type { AuditInput, Check, CrawlerAccess, EngineAnswer, Extracted, LocalPresence, Pillar, PillarKey, PageSpeed } from "@/lib/types";
 import { faqsFor, getCategory } from "@/lib/categories";
 import { getCountry, nearPlace, placeOf, shortPlace } from "@/lib/locale";
 import { isLocalType, normalisePhone } from "./extract";
@@ -16,7 +16,7 @@ export const pillarMeta: Record<PillarKey, { label: string; summary: string; wei
   nap: { label: "Name, address, phone", summary: "The same business details everywhere, so engines know it's you.", weight: 0.2, group: "readiness" },
   content: { label: "Answer-first content", summary: "Pages that answer the exact questions customers ask.", weight: 0.2, group: "readiness" },
   entity: { label: "Entity strength", summary: "Proof you're a real, established local business.", weight: 0.2, group: "readiness" },
-  crawl: { label: "AI crawler access", summary: "Whether AI crawlers are allowed in and can read your site.", weight: 0.2, group: "readiness" },
+  crawl: { label: "Crawler access and speed", summary: "Whether AI crawlers can get in and read your site, and how fast it loads on a phone.", weight: 0.2, group: "readiness" },
 };
 
 export const VISIBILITY_SHARE = 0.75;
@@ -85,6 +85,7 @@ export function scoreNap(x: Extracted, input: AuditInput): Pillar {
   const schemaPhone = biz?.telephone ? normalisePhone(String(biz.telephone), place.country) : null;
   const schemaName = biz?.name ? String(biz.name) : null;
   const nameOnPage = norm(x.textSample).includes(norm(input.businessName)) || norm(x.title).includes(norm(input.businessName));
+  const homePhones = x.homePhones ?? x.phones;
   const phoneConsistent = !schemaPhone || x.phones.length === 0 || x.phones.includes(schemaPhone);
   const where = nearPlace(place);
   const suburbMentioned = !!where && norm(x.textSample + " " + x.title).includes(norm(where));
@@ -99,8 +100,8 @@ export function scoreNap(x: Extracted, input: AuditInput): Pillar {
     c("nap-phone", "Phone number visible", x.phones.length > 0, 2,
       x.phones.length ? `Found ${x.phones.slice(0, 3).join(", ")}` : "No phone number found in text or tel: links.",
       "Show a clickable phone number (tel: link) in the header and footer of every page."),
-    c("nap-phone-consistent", "One consistent phone", x.phones.length <= 2 && phoneConsistent ? true : "warn", 1,
-      x.phones.length > 2 ? `${x.phones.length} different numbers on one page confuse engines.` : phoneConsistent ? "Phone numbers are consistent." : "Schema phone differs from the page.",
+    c("nap-phone-consistent", "One consistent phone", homePhones.length <= 2 && phoneConsistent ? true : "warn", 1,
+      homePhones.length > 2 ? `${homePhones.length} different numbers on one page confuse engines.` : phoneConsistent ? "Phone numbers are consistent." : "Schema phone differs from the page.",
       "Pick one primary number and use it everywhere, including directories."),
     c("nap-address", "Street address visible", x.addresses.length > 0 ? true : x.postcodes.length ? "warn" : false, 2,
       x.addresses.length ? x.addresses[0] : x.postcodes.length ? `Postcode ${x.postcodes[0]} found, but no full street address.` : "No street address found.",
@@ -185,7 +186,7 @@ export function scoreEntity(x: Extracted, input: AuditInput): Pillar {
   return { key: "entity", ...pillarMeta.entity, score: score(checks), checks };
 }
 
-export function scoreCrawl(x: Extracted, cr: CrawlerAccess): Pillar {
+export function scoreCrawl(x: Extracted, cr: CrawlerAccess, speed?: PageSpeed | null): Pillar {
   const noindex = /noindex/i.test(x.robotsMeta ?? "");
   const checks: Check[] = [
     c("crawl-ai-bots", "AI crawlers allowed", cr.blocked.length === 0 ? true : cr.blocked.length <= 2 ? "warn" : false, 3,
@@ -210,6 +211,18 @@ export function scoreCrawl(x: Extracted, cr: CrawlerAccess): Pillar {
     c("crawl-alt", "Image alt text", x.images === 0 || x.imagesWithoutAlt / x.images < 0.3 ? true : "warn", 0.5,
       `${x.imagesWithoutAlt} of ${x.images} images have no alt text.`, "Describe images with alt text, e.g. 'Plumber fixing hot water system in Norwood'."),
   ];
+  if (speed) {
+    // Real-visitor LCP when Google has it, otherwise the lab result.
+    const lcp = speed.field?.lcpMs ?? speed.lcpMs;
+    const ok = speed.score >= 70 || (speed.field?.lcpMs != null && speed.field.lcpMs <= 2500);
+    const meh = speed.score >= 45;
+    const sec = (v: number | null) => (v == null ? "?" : `${(v / 1000).toFixed(1)}s`);
+    checks.push(
+      c("crawl-pagespeed", "Fast on mobile", ok ? true : meh ? "warn" : false, 2,
+        `Mobile speed score ${speed.score}/100. Main content shows in ${sec(lcp)}${speed.field?.lcpMs != null ? " for real visitors" : " in Google's test"}.`,
+        "Compress and resize images, cut unused plugins and scripts, and use caching. Aim for the main content to show in under 2.5 seconds on a phone."),
+    );
+  }
   return { key: "crawl", ...pillarMeta.crawl, score: score(checks), checks };
 }
 

@@ -5,6 +5,7 @@ import type { EngineId } from "@/lib/types";
 import { getCountry, type Place } from "@/lib/locale";
 import { geocodeCity, searchLocal, type LocalListing } from "@/lib/places";
 import { coreName, hostOf, norm } from "@/lib/names";
+import { askDfsAiOverview, askDfsChatGPT, askDfsModel, dataforseoEnabled, dataforseoEngines } from "./dataforseo";
 
 /** How an answer was sourced: a live web search, live Google Maps results, or the model's memory. */
 export type Grounding = "web" | "maps" | "none";
@@ -16,16 +17,25 @@ export const engineLabels: Record<EngineId, string> = {
   perplexity: "Perplexity",
   claude: "Claude",
   ollama: "Open model",
+  ai_overview: "Google AI Overviews",
 };
 
 export function enabledEngines(): EngineId[] {
+  const dfs = dataforseoEnabled() ? dataforseoEngines() : new Set<string>();
   const out: EngineId[] = [];
-  if (env.openai) out.push("chatgpt");
+  if (env.openai || dfs.has("chatgpt")) out.push("chatgpt");
   if (env.gemini) out.push("gemini");
-  if (env.perplexity) out.push("perplexity");
-  if (env.anthropic) out.push("claude");
+  if (dfs.has("ai_overview")) out.push("ai_overview");
+  if (env.perplexity || dfs.has("perplexity")) out.push("perplexity");
+  if (env.anthropic || dfs.has("claude")) out.push("claude");
   if (env.ollama) out.push("ollama");
   return out;
+}
+
+/** True when this engine's answers come from DataForSEO (no direct API key for it). */
+function viaDataforseo(engine: EngineId) {
+  if (!dataforseoEnabled() || !dataforseoEngines().has(engine)) return false;
+  return engine === "ai_overview" || (engine === "chatgpt" && !env.openai) || (engine === "perplexity" && !env.perplexity) || (engine === "claude" && !env.anthropic);
 }
 
 /** Where the person asking is, so web-search engines localise results. */
@@ -336,7 +346,19 @@ async function askOllama(prompt: string, loc: Loc): Promise<EngineReply> {
 /** mapsListings: Google Maps results the caller already has, used to ground Gemini without searching again. */
 export async function askEngine(engine: EngineId, prompt: string, place?: Place, mapsListings?: LocalListing[]): Promise<EngineReply> {
   const loc = locFor(place);
+  if (viaDataforseo(engine)) {
+    // Real ChatGPT and Google answers with web search, so they count as grounded.
+    const reply =
+      engine === "chatgpt"
+        ? await askDfsChatGPT(prompt, loc.country)
+        : engine === "ai_overview"
+          ? await askDfsAiOverview(prompt, loc.country)
+          : await askDfsModel(engine === "claude" ? "claude" : "perplexity", prompt, loc.country);
+    return { ...reply, grounded: true, grounding: "web" };
+  }
   switch (engine) {
+    case "ai_overview":
+      throw new Error("Google AI Overviews need DataForSEO");
     case "chatgpt":
       return askChatGPT(prompt, loc);
     case "gemini":

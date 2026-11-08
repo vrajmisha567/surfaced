@@ -14,6 +14,8 @@ import { getAuditStats } from "@/lib/stats";
 
 /** The live stats and revenue sections refresh hourly. */
 export const revalidate = 3600;
+// The audit runs as a server action on this page; real ChatGPT answers can take up to two minutes.
+export const maxDuration = 300;
 
 const faqs = [
   {
