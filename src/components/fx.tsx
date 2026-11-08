@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { AnimatePresence, motion, useInView, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { AnimatePresence, animate, motion, useInView, useReducedMotion } from "motion/react";
 import { ScoreBar, ScoreRing } from "./ui";
 
 const EASE = [0.21, 0.47, 0.32, 0.98] as const;
@@ -88,28 +88,35 @@ export function Reveal({ children, className, delay = 0, y = 16 }: { children: R
 /** Counts up to a number when it scrolls into view. */
 export function NumberTicker({ value, suffix = "", className }: { value: number; suffix?: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "0px 0px -40px 0px" });
   const reduce = useReducedMotion();
-  const mv = useMotionValue(0);
-  const spring = useSpring(mv, { damping: 50, stiffness: 140 });
+  // The real number is in the HTML (for search engines, no-JS visitors and screenshots).
+  // Only numbers that are still below the fold get reset to 0 and counted up when they scroll in.
   useEffect(() => {
-    if (!inView) return;
-    if (reduce) {
-      if (ref.current) ref.current.textContent = `${value}${suffix}`;
-      return;
-    }
-    mv.set(value);
-  }, [inView, reduce, value, suffix, mv]);
-  useEffect(
-    () =>
-      spring.on("change", (v) => {
-        if (ref.current) ref.current.textContent = `${Math.round(v)}${suffix}`;
-      }),
-    [spring, suffix],
-  );
+    const el = ref.current;
+    if (!el || reduce) return;
+    const box = el.getBoundingClientRect();
+    if (box.top < window.innerHeight && box.bottom > 0) return;
+    el.textContent = `0${suffix}`;
+    let run: ReturnType<typeof animate> | undefined;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        io.disconnect();
+        run = animate(0, value, { duration: 1.4, ease: EASE, onUpdate: (v) => (el.textContent = `${Math.round(v)}${suffix}`) });
+      },
+      { rootMargin: "0px 0px -40px 0px" },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      run?.stop();
+      el.textContent = `${value}${suffix}`;
+    };
+  }, [value, suffix, reduce]);
   return (
     <span ref={ref} className={clsx("tabular", className)} aria-label={`${value}${suffix}`}>
-      0{suffix}
+      {value}
+      {suffix}
     </span>
   );
 }
