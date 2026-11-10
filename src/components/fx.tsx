@@ -7,7 +7,7 @@
   prefers-reduced-motion.
 */
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { AnimatePresence, animate, motion, useInView, useReducedMotion } from "motion/react";
 import { ScoreBar, ScoreRing } from "./ui";
@@ -47,25 +47,33 @@ export function TextRotate({ words, interval = 2600, className }: { words: strin
   );
 }
 
-/** Words of a heading fade up out of a blur, one after another, on load. */
+/**
+ * Words of a heading fade up out of a blur, one after another, on load.
+ * Pure CSS (.fx-enter), so it starts at first paint instead of waiting for JavaScript:
+ * the JS-driven version left the top of the hero blank until hydration finished.
+ */
 export function RevealWords({ text, className, delay = 0, stagger = 0.06 }: { text: string; className?: string; delay?: number; stagger?: number }) {
-  const reduce = useReducedMotion();
   const words = text.split(" ");
   return (
     <span className={className}>
       {words.map((w, k) => (
-        <motion.span
-          key={k}
-          className="inline-block"
-          initial={reduce ? false : { opacity: 0, y: 14, filter: "blur(8px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.7, ease: EASE, delay: delay + k * stagger }}
-        >
-          {w}
-          {k < words.length - 1 ? " " : ""}
-        </motion.span>
+        <Fragment key={k}>
+          <span className="fx-enter inline-block" style={{ animationDelay: `${delay + k * stagger}s` }}>
+            {w}
+          </span>
+          {k < words.length - 1 ? " " : ""}
+        </Fragment>
       ))}
     </span>
+  );
+}
+
+/** Above-the-fold block that blur-fades in on load, in CSS (see RevealWords for why). */
+export function Enter({ children, className, delay = 0, as: Tag = "div" }: { children: React.ReactNode; className?: string; delay?: number; as?: "div" | "span" }) {
+  return (
+    <Tag className={clsx("fx-enter", Tag === "span" && "inline-block", className)} style={{ animationDelay: `${delay}s` }}>
+      {children}
+    </Tag>
   );
 }
 

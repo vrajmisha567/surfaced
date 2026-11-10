@@ -1,7 +1,7 @@
 import { ArrowRight, Check, Minus } from "lucide-react";
 import { AnswerCard } from "@/components/answer-card";
 import { AuditForm } from "@/components/audit-form";
-import { BorderBeam, NumberTicker, Reveal, RevealWords, SampleScores, SpotlightCard, TextRotate } from "@/components/fx";
+import { BorderBeam, Enter, NumberTicker, Reveal, RevealWords, SampleScores, SpotlightCard, TextRotate } from "@/components/fx";
 import { OpenSection, StatsSection } from "@/components/live-sections";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Card, Label, LinkButton } from "@/components/ui";
@@ -151,17 +151,19 @@ export default async function Home() {
                 <RevealWords text="When customers ask AI" />
                 <br className="hidden sm:block" />{" "}
                 <RevealWords text="for the best" delay={0.24} />{" "}
-                <TextRotate words={rotatingTrades} className="text-accent" />
-                <span className="text-accent">,</span>
+                <Enter as="span" delay={0.36}>
+                  <TextRotate words={rotatingTrades} className="text-accent" />
+                  <span className="text-accent">,</span>
+                </Enter>
                 <br />
                 <RevealWords text="be the name it gives." delay={0.42} className="serif text-[1.1em] tracking-[-0.02em] text-ink" />
               </h1>
-              <Reveal delay={0.55}>
+              <Enter delay={0.5}>
                 <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-ink-2">
                   ChatGPT, Gemini, Perplexity and Claude now answer “who's the best plumber near me?” with two or three names. Surfaced checks whether yours is one of them, fixes what's stopping it, and tracks it every week, in any city.
                 </p>
-              </Reveal>
-              <Reveal delay={0.7}>
+              </Enter>
+              <Enter delay={0.6}>
                 <Card className="relative mt-8 p-4 shadow-[0_1px_0_rgba(16,24,40,.04),0_24px_60px_-28px_rgba(16,24,40,.28)] sm:p-5">
                   <BorderBeam size={120} duration={12} />
                   <div className="mb-3 flex items-center justify-between">
@@ -170,11 +172,11 @@ export default async function Home() {
                   </div>
                   <AuditForm />
                 </Card>
-              </Reveal>
+              </Enter>
             </div>
-            <Reveal delay={0.35} y={24}>
+            <Enter delay={0.35}>
               <AnswerCard />
-            </Reveal>
+            </Enter>
           </div>
 
           <div className="relative pb-10">

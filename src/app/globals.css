@@ -174,6 +174,23 @@ form[id] {
   animation: rise 0.5s ease-out both;
 }
 
+/* Hero entrance (RevealWords / Enter in components/fx.tsx). CSS so it runs from first paint. */
+@keyframes fx-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+.fx-enter {
+  animation: fx-enter 0.7s cubic-bezier(0.21, 0.47, 0.32, 0.98) both;
+}
+
 /* ---------- Marketing effects (see components/fx.tsx) ---------- */
 
 /* On dark panels the grid is drawn inverted; in dark mode it's already light. */
@@ -302,6 +319,7 @@ html[data-theme="dark"] .theme-icon-moon {
   .fx-shine,
   .fx-glow,
   .fx-ping,
+  .fx-enter,
   .rise {
     animation: none !important;
   }
