@@ -1,4 +1,4 @@
-import { plans, site } from "@/lib/site";
+import { publicPlans, site } from "@/lib/site";
 import { categories } from "@/lib/categories";
 
 // Practise what we preach: Surfaced publishes its own llms.txt.
@@ -14,7 +14,7 @@ export function GET() {
     "- Weekly tracking: re-asks the same questions and reports share of voice against local competitors.",
     "",
     "## Pricing (AUD)",
-    ...plans.map((p) => `- ${p.name}: $${p.price}${p.interval === "month" ? "/month" : " one-off"}. ${p.blurb}`),
+    ...publicPlans.map((p) => `- ${p.name}: $${p.price}${p.interval === "month" ? "/month" : " one-off"}. ${p.blurb}`),
     "",
     "## Who we work with",
     `- Local businesses in any city and country: ${categories.map((c) => c.plural.toLowerCase()).join(", ")}.`,

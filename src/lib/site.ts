@@ -9,7 +9,19 @@ export const site = {
   contactEmail: process.env.CONTACT_EMAIL ?? "hello@surfaced.au",
   bookingUrl: process.env.NEXT_PUBLIC_BOOKING_URL ?? "",
   abn: process.env.NEXT_PUBLIC_ABN ?? "",
+  /**
+   * Set NEXT_PUBLIC_GST_REGISTERED=true once Surfaced is registered for GST. Until then the prices
+   * are the full price and the site must not say they include GST.
+   */
+  gstRegistered: process.env.NEXT_PUBLIC_GST_REGISTERED === "true",
 };
+
+/** The one line under prices, matching the GST setting above. */
+export function priceNote() {
+  return site.gstRegistered
+    ? "Prices in Australian dollars. GST included for Australian businesses."
+    : "Prices in Australian dollars.";
+}
 
 export const plans = [
   {
@@ -17,6 +29,7 @@ export const plans = [
     name: "Fix Pack",
     price: 350,
     interval: "once" as const,
+    featured: true,
     blurb: "One-off. We audit, then install the fixes AI engines look for.",
     features: [
       "Full seven-area AI visibility audit",
@@ -28,12 +41,26 @@ export const plans = [
     ],
   },
   {
+    id: "tracking",
+    name: "Tracking",
+    price: 190,
+    interval: "month" as const,
+    blurb: "After the Fix Pack: see every week whether AI engines name you, and who they name instead.",
+    features: [
+      "Weekly checks across ChatGPT, Gemini, Perplexity and Claude",
+      "Your Google Maps rank from 5 spots across your city",
+      "Share of voice against 3 local competitors",
+      "Private client dashboard",
+      "Monthly report, in plain English",
+      "Cancel any month",
+    ],
+  },
+  {
     id: "visibility",
     name: "Visibility",
     price: 400,
     interval: "month" as const,
-    featured: true,
-    blurb: "Everything in Fix Pack, then we track and improve it every week.",
+    blurb: "Everything in Fix Pack, then we track and keep improving it every week.",
     features: [
       "Weekly checks across ChatGPT, Gemini, Perplexity and Claude",
       "Share of voice against 3 local competitors",
@@ -48,6 +75,8 @@ export const plans = [
     name: "Growth",
     price: 750,
     interval: "month" as const,
+    /** Not offered publicly until Visibility has proven itself; still usable from the console. */
+    hidden: true,
     blurb: "For businesses in crowded categories with more areas to win.",
     features: [
       "Everything in Visibility",
@@ -61,3 +90,6 @@ export const plans = [
 ];
 
 export type PlanId = (typeof plans)[number]["id"];
+
+/** The plans shown on the public site, llms.txt and the terms. */
+export const publicPlans = plans.filter((p) => !("hidden" in p && p.hidden));

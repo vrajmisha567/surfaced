@@ -236,7 +236,7 @@ export type Client = {
   category: string;
   contact_name: string | null;
   contact_email: string | null;
-  plan: "fixpack" | "visibility" | "growth" | "pilot";
+  plan: "fixpack" | "tracking" | "visibility" | "growth" | "pilot";
   status: "active" | "paused" | "cancelled";
   monthly_value: number;
   share_token: string;

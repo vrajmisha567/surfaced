@@ -80,6 +80,7 @@ export default async function ProspectPage({ params }: PageProps<"/app/prospects
               <select name="plan" className={inputCls} defaultValue="pilot">
                 <option value="pilot">Free pilot</option>
                 <option value="fixpack">Fix Pack ($350)</option>
+                <option value="tracking">Tracking ($190/mo)</option>
                 <option value="visibility">Visibility ($400/mo)</option>
                 <option value="growth">Growth ($750/mo)</option>
               </select>

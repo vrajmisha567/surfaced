@@ -9,7 +9,7 @@ import { categories, getCategory, promptsFor } from "@/lib/categories";
 import { countryOptions, type Place } from "@/lib/locale";
 import { pillarMeta } from "@/lib/audit/score";
 import { getRevenue } from "@/lib/revenue";
-import { plans, site } from "@/lib/site";
+import { priceNote, publicPlans, site } from "@/lib/site";
 import { getAuditStats } from "@/lib/stats";
 
 /** The live stats and revenue sections refresh hourly. */
@@ -391,7 +391,7 @@ export default async function Home() {
             <p className="mt-3 max-w-2xl text-ink-2">Agencies charge $1,500+ a month for this. You get the same checks and fixes, scoped to a single location.</p>
           </Reveal>
           <div className="mt-12 grid gap-4 lg:grid-cols-3">
-            {plans.map((p, k) => (
+            {publicPlans.map((p, k) => (
               <Reveal key={p.id} delay={k * 0.1}>
                 <Card
                   className={`relative flex h-full flex-col p-7 transition-transform duration-300 hover:-translate-y-1 ${
@@ -401,7 +401,7 @@ export default async function Home() {
                   {p.featured && (
                     <>
                       <BorderBeam size={160} duration={9} from="#13855f" to="#a7f0d2" />
-                      <span className="label absolute -top-2.5 left-7 rounded bg-accent px-2 py-0.5 !text-white">Most chosen</span>
+                      <span className="label absolute -top-2.5 left-7 rounded bg-accent px-2 py-0.5 !text-white">Start here</span>
                     </>
                   )}
                   <div className="font-medium">{p.name}</div>
@@ -430,13 +430,22 @@ export default async function Home() {
               </Reveal>
             ))}
           </div>
-          <p className="mt-4 text-xs text-muted">Prices in Australian dollars. GST included for Australian businesses.</p>
+          <p className="mt-4 text-xs text-muted">{priceNote()}</p>
           <Reveal>
             <div className="mt-6 rounded-xl border border-dashed border-line-2 p-5 text-sm text-ink-2">
               <b className="text-ink">Pilot spots:</b> the first three businesses in each category get their first month of Visibility free in exchange for an honest testimonial.{" "}
               <a href="#audit" className="text-accent underline underline-offset-2">Start with the free audit.</a>
             </div>
           </Reveal>
+          {site.bookingUrl && (
+            <p className="mt-4 text-sm text-ink-2">
+              Not sure which plan fits?{" "}
+              <a href={site.bookingUrl} target="_blank" rel="noopener" className="text-accent underline underline-offset-2">
+                Book a 15-minute call
+              </a>
+              .
+            </p>
+          )}
         </section>
 
         {/* OPEN REVENUE */}

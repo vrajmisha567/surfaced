@@ -55,7 +55,7 @@ export default async function ReportPage({ params }: PageProps<"/report/[id]">) 
               Get the Fix Pack <ArrowRight size={16} />
             </LinkButton>
             <a href={site.bookingUrl || `mailto:${site.contactEmail}?subject=${encodeURIComponent(`Audit ${audit.id.slice(0, 8)}: ${audit.business_name}`)}`} className="text-sm text-[#a9b4c6] underline underline-offset-2 hover:text-white">
-              Or talk it through first
+              {site.bookingUrl ? "Or book a 15-minute call first" : "Or talk it through first"}
             </a>
           </div>
         </Card>

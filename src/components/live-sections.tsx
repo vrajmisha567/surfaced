@@ -4,7 +4,7 @@ import { DailyBars, Scatter } from "@/components/stats-charts";
 import { Card, Label } from "@/components/ui";
 import type { RevenueStats } from "@/lib/revenue";
 import type { AuditStats } from "@/lib/stats";
-import { plans } from "@/lib/site";
+import { publicPlans as plans } from "@/lib/site";
 
 /*
   Live-data sections of the home page: AI visibility statistics from every audit,

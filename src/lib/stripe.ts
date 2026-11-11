@@ -13,6 +13,7 @@ export function stripe() {
 /** Optional pre-created Stripe prices; otherwise prices are created inline from lib/site plans. */
 const priceEnv: Record<PlanId, string | undefined> = {
   fixpack: process.env.STRIPE_PRICE_FIXPACK,
+  tracking: process.env.STRIPE_PRICE_TRACKING,
   visibility: process.env.STRIPE_PRICE_VISIBILITY,
   growth: process.env.STRIPE_PRICE_GROWTH,
 };

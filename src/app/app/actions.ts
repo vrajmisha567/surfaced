@@ -238,7 +238,7 @@ const clientSchema = z.object({
   specialty: z.string().trim().optional(),
   specialtyOther: z.string().trim().optional(),
   contact_email: z.string().trim().optional(),
-  plan: z.enum(["fixpack", "visibility", "growth", "pilot"]),
+  plan: z.enum(["fixpack", "tracking", "visibility", "growth", "pilot"]),
 });
 
 export async function createClient(_: ActionResult | null, form: FormData): Promise<ActionResult> {

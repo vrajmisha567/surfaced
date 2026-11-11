@@ -91,7 +91,7 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/a
               <Field label="Contact email"><input name="contact_email" defaultValue={c.contact_email ?? ""} className={inputCls} /></Field>
               <Field label="Plan">
                 <select name="plan" defaultValue={c.plan} className={inputCls}>
-                  {["pilot", "fixpack", "visibility", "growth"].map((p) => <option key={p} value={p}>{p}</option>)}
+                  {["pilot", "fixpack", "tracking", "visibility", "growth"].map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </Field>
               <Field label="Status">

@@ -56,7 +56,7 @@ export default function TermsPage() {
       <Section n={5} title="Paid plans">
         <ul>
           <li>
-            Prices are shown on our <Link href="/#pricing">pricing section</Link> in Australian dollars, including GST for Australian customers. Payments are handled by Stripe.
+            Prices are shown on our <Link href="/#pricing">pricing section</Link> in Australian dollars{site.gstRegistered ? ", including GST for Australian customers" : ""}. Payments are handled by Stripe.
           </li>
           <li>
             The <b>Fix Pack</b>

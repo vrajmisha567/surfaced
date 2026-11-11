@@ -67,6 +67,7 @@ export default async function ClientsPage() {
             <select name="plan" className={inputCls} defaultValue="visibility">
               <option value="pilot">Free pilot</option>
               <option value="fixpack">Fix Pack</option>
+              <option value="tracking">Tracking</option>
               <option value="visibility">Visibility</option>
               <option value="growth">Growth</option>
             </select>
