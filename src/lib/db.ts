@@ -230,6 +230,34 @@ export const db = {
     create: (row: Omit<Client, "id" | "created_at" | "share_token">) => insert("clients", { ...row, share_token: randomBytes(16).toString("hex") }),
     update: (id: string, patch: Partial<Client>) => update("clients", id, patch),
   },
+  /**
+   * Shared cache for paid lookups (Google Maps searches). Supabase only; without it callers
+   * just use their in-memory cache. Never throws: a cache failure must not break an audit.
+   */
+  cache: {
+    get: async <T>(key: string, maxAgeMs: number): Promise<T | null> => {
+      const s = supabase();
+      if (!s) return null;
+      try {
+        const since = new Date(Date.now() - maxAgeMs).toISOString();
+        const { data } = await s.from("places_cache").select("data").eq("key", key).gte("created_at", since).maybeSingle();
+        return (data?.data as T) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    set: async (key: string, value: unknown): Promise<void> => {
+      const s = supabase();
+      if (!s) return;
+      try {
+        await s.from("places_cache").upsert({ key, data: value, created_at: new Date().toISOString() });
+        // Now and then, drop entries nothing will read again (the longest TTL is 30 days).
+        if (Math.random() < 0.02) await s.from("places_cache").delete().lt("created_at", new Date(Date.now() - 31 * 86_400_000).toISOString());
+      } catch {
+        /* ignore */
+      }
+    },
+  },
   runs: {
     forClient: (clientId: string) => list("tracker_runs", { where: { client_id: clientId }, order: "created_at", desc: false, limit: 5000 }),
     createMany: (rows: Omit<TrackerRun, "id" | "created_at">[]) => insertMany("tracker_runs", rows),

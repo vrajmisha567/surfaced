@@ -1,5 +1,6 @@
 import "server-only";
 import { dataforseoEnabled, dfsMapsSearch } from "@/lib/ai/dataforseo";
+import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 
 export type PlaceResult = {
@@ -60,7 +61,39 @@ type LocalResponse = {
   error?: { message: string };
 };
 
-const cache = new Map<string, { at: number; data: LocalListing[] }>();
+const DAY = 86_400_000;
+/** Maps rankings move slowly; audits of the same trade in the same city share searches for a day. */
+const SEARCH_TTL = DAY;
+const CITY_TTL = 30 * DAY;
+
+const memory = new Map<string, { at: number; data: unknown }>();
+
+/**
+ * This server's memory first, then the shared Supabase cache, then the paid call.
+ * Serverless instances come and go, so the shared layer is what saves most calls:
+ * auditing 20 plumbers in one city reuses the same 5-spot grid searches.
+ * Nothing is cached when the call throws or returns null.
+ */
+async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const m = memory.get(key);
+  if (m && Date.now() - m.at < ttlMs) return m.data as T;
+  const shared = await db.cache.get<T>(key, ttlMs);
+  if (shared != null) {
+    remember(key, shared);
+    return shared;
+  }
+  const data = await load();
+  if (data != null) {
+    remember(key, data);
+    await db.cache.set(key, data);
+  }
+  return data;
+}
+
+function remember(key: string, data: unknown) {
+  if (memory.size > 500) memory.clear();
+  memory.set(key, { at: Date.now(), data });
+}
 
 export type LatLng = { latitude: number; longitude: number };
 /** Search as if standing here. Google Maps ranks local results by where the searcher is. */
@@ -74,27 +107,25 @@ const LITE_FIELDS = "places.id,places.displayName";
 /**
  * Google Maps results for a search, in Google's own order. Pass `near` to search from a point:
  * without it, Google uses the server's own location, which for Vercel is Sydney.
- * Cached for 15 minutes per query and point.
+ * Cached for 24 hours per query and point, shared across servers.
  */
 export async function searchLocal(query: string, opts: { country?: string; near?: Near; lite?: boolean } = {}, max = 10): Promise<LocalListing[]> {
   // With DataForSEO, Maps rankings come from a real Google Maps search at that point.
   if (opts.near && dataforseoEnabled() && process.env.DATAFORSEO_MAPS !== "off") {
-    const key = `dfs|${opts.near.center.latitude.toFixed(3)},${opts.near.center.longitude.toFixed(3)}|${max}|${query.toLowerCase().trim()}`;
-    const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < 15 * 60_000) return hit.data;
-    const data = await dfsMapsSearch(query, opts.near.center, max);
-    cache.set(key, { at: Date.now(), data });
-    return data;
+    const near = opts.near;
+    const key = `maps:dfs|${near.center.latitude.toFixed(3)},${near.center.longitude.toFixed(3)}|${max}|${query.toLowerCase().trim()}`;
+    return cached(key, SEARCH_TTL, () => dfsMapsSearch(query, near.center, max));
   }
   if (!env.googlePlaces) throw new Error("GOOGLE_PLACES_API_KEY is not set");
   const at = opts.near ? `${opts.near.center.latitude.toFixed(3)},${opts.near.center.longitude.toFixed(3)},${opts.near.radius}` : "-";
-  const key = `${opts.country ?? "AU"}|${at}|${opts.lite ? "lite" : "full"}|${max}|${query.toLowerCase().trim()}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < 15 * 60_000) return hit.data;
+  const key = `maps:places|${opts.country ?? "AU"}|${at}|${opts.lite ? "lite" : "full"}|${max}|${query.toLowerCase().trim()}`;
+  return cached(key, SEARCH_TTL, () => placesTextSearch(query, opts, max));
+}
 
+async function placesTextSearch(query: string, opts: { country?: string; near?: Near; lite?: boolean }, max: number): Promise<LocalListing[]> {
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": env.googlePlaces, "x-goog-fieldmask": opts.lite ? LITE_FIELDS : FULL_FIELDS },
+    headers: { "content-type": "application/json", "x-goog-api-key": env.googlePlaces!, "x-goog-fieldmask": opts.lite ? LITE_FIELDS : FULL_FIELDS },
     body: JSON.stringify({
       textQuery: query,
       pageSize: Math.min(max, 20),
@@ -119,18 +150,21 @@ export async function searchLocal(query: string, opts: { country?: string; near?
     summary: p.editorialSummary?.text ?? null,
     location: p.location ?? null,
   }));
-  if (cache.size > 500) cache.clear();
-  cache.set(key, { at: Date.now(), data });
   return data;
 }
 
 const cityCache = new Map<string, { center: LatLng; low: LatLng; high: LatLng } | null>();
 
-/** A city's centre and map bounds, e.g. "Adelaide, Australia". Cached for the life of the server. */
+/** A city's centre and map bounds, e.g. "Adelaide, Australia". Cached for 30 days, shared across servers. */
 export async function geocodeCity(city: string, countryName: string, country: string) {
   const key = `${country}|${city.toLowerCase()}`;
   if (cityCache.has(key)) return cityCache.get(key)!;
   if (!env.googlePlaces) return null;
+  const shared = await db.cache.get<{ center: LatLng; low: LatLng; high: LatLng }>(`city|${key}`, CITY_TTL);
+  if (shared) {
+    cityCache.set(key, shared);
+    return shared;
+  }
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": env.googlePlaces, "x-goog-fieldmask": "places.location,places.viewport" },
@@ -142,7 +176,11 @@ export async function geocodeCity(city: string, countryName: string, country: st
   if (!res.ok) throw new Error(json.error?.message ?? `Places error ${res.status}`);
   const p = json.places?.[0];
   const out = p?.location && p.viewport ? { center: p.location, low: p.viewport.low, high: p.viewport.high } : null;
-  if (out) cityCache.set(key, out); // don't remember failures: the next audit can retry
+  if (out) {
+    // Don't remember failures: the next audit can retry.
+    cityCache.set(key, out);
+    await db.cache.set(`city|${key}`, out);
+  }
   return out;
 }
 
